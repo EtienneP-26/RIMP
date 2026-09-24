@@ -3,7 +3,7 @@
 !.env.example
 
 ### Binaire du projet ###
-RIMP
+rimp
 
 ### C / C++ ###
 *.o
