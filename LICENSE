@@ -1,0 +1,35 @@
+RIMP : licence temporaire
+
+Copyright (c) 2026 POUILLE Etienne. Tous droits réservés.
+
+Cette licence est temporaire. Elle sera remplacée par une licence libre après
+la version v1.0.0, pour permettre à d'autres personnes de contribuer.
+
+CE QUI EST PERMIS
+Toute personne peut, gratuitement :
+1. télécharger, installer et utiliser RIMP, pour un usage personnel ou
+   professionnel ;
+2. lire le code source.
+
+CE QUI EST INTERDIT SANS L'ACCORD ÉCRIT DE L'AUTEUR
+1. modifier le code source ou publier une version modifiée de RIMP ;
+2. redistribuer RIMP, modifié ou non (renvoyer vers le dépôt officiel est
+   autorisé) ;
+3. vendre RIMP ou l'inclure dans un produit ou un service payant.
+
+CONTRIBUTIONS
+Tant que cette licence est en vigueur, les contributions extérieures
+(pull requests) ne sont pas acceptées.
+
+VERSIONS PUBLIÉES
+Les versions publiées sous cette licence restent sous cette licence. Les
+versions suivantes pourront être publiées sous une autre licence.
+
+BIBLIOTHÈQUES TIERCES
+Les bibliothèques utilisées par RIMP restent soumises à leurs propres
+licences.
+
+GARANTIE
+Le logiciel est fourni « tel quel », sans garantie d'aucune sorte, explicite
+ou implicite. L'auteur ne peut être tenu responsable d'aucun dommage lié à
+l'utilisation du logiciel.
