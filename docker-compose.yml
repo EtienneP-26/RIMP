@@ -1,0 +1,24 @@
+services:
+  env:
+    image: rust:1
+    volumes:
+      - .:/app
+      - cargo-registry:/usr/local/cargo/registry
+      - cargo-target:/app/target
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    command: bash
+
+  lint:
+    image: ghcr.io/super-linter/super-linter:slim-v6
+    environment:
+      - RUN_LOCAL=true
+      - VALIDATE_ALL_CODEBASE=true
+      - DEFAULT_BRANCH=main
+    volumes:
+      - .:/tmp/lint
+
+volumes:
+  cargo-registry:
+  cargo-target:
