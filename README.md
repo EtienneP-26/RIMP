@@ -2,9 +2,9 @@
 
 > RIMP est un éditeur d'images pour Linux, pensé d'abord pour le dessin à la tablette graphique.
 
-**Dernière version stable** : aucune pour l'instant
+**Dernière version stable** : v0.1.0
 
-**En développement** : v0.1.0
+**En développement** : v0.2.0
 
 ## Sommaire
 
