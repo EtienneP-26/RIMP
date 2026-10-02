@@ -1,3 +1,5 @@
+![Logo RIMP](docs/assets/Logo.png)
+
 # **RIMP**
 
 > RIMP est un éditeur d'images pour Linux, pensé d'abord pour le dessin à la tablette graphique.
