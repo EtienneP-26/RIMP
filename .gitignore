@@ -11,7 +11,6 @@ rimp
 *.so
 *.out
 a.out
-core
 vgcore.*
 *.gcda
 *.gcno
