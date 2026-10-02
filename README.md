@@ -4,7 +4,7 @@
 
 **Dernière version stable** : aucune pour l'instant
 
-**En développement** : v0.1.0
+**En développement** : v0.2.1
 
 ## Sommaire
 
