@@ -30,12 +30,13 @@ Règles :
 
 | Version | Nom | Description |
 |---|---|---|
-| v0.2.0 | Mélange de pixels | Première vraie fonction du moteur : `blend_normal` pose un pixel (la source) par-dessus un autre (la destination) avec la formule de transparence prémultipliée `out = src + dst × (1 − src.a)`. Trois tests unitaires la vérifient avec des valeurs connues. Ce sont les premiers tests du projet. |
-| v0.2.1 | Tuile | `Tile` : un carré de 64×64 pixels (rouge, vert, bleu et alpha en nombres décimaux) avec `get` et `set` pour lire et écrire un pixel. Tests inclus. |
-| v0.2.2 | Export PNG d'une tuile | Écrit une tuile dans un fichier PNG (crate `png`), pour pouvoir enfin la regarder. |
-| v0.2.3 | Modes de fusion | `BlendMode` : Normal, Produit et Addition. Chaque mode est testé avec des valeurs connues. |
-| v0.2.4 | Erreurs propres | Un type d'erreur défini avec `thiserror`, et l'export utilise `?` au lieu de `unwrap`. |
-| v0.2.5 | Code propre | `cargo fmt --check` et `cargo clippy -- -D warnings` ne signalent plus rien. |
+| v0.2.0 | CI/CD | Ajout de la CI/CD github workflows | 
+| v0.2.1 | Mélange de pixels | Première vraie fonction du moteur : `blend_normal` pose un pixel (la source) par-dessus un autre (la destination) avec la formule de transparence prémultipliée `out = src + dst × (1 − src.a)`. Trois tests unitaires la vérifient avec des valeurs connues. Ce sont les premiers tests du projet. |
+| v0.2.2 | Tuile | `Tile` : un carré de 64×64 pixels (rouge, vert, bleu et alpha en nombres décimaux) avec `get` et `set` pour lire et écrire un pixel. Tests inclus. |
+| v0.2.3 | Export PNG d'une tuile | Écrit une tuile dans un fichier PNG (crate `png`), pour pouvoir enfin la regarder. |
+| v0.2.4 | Modes de fusion | `BlendMode` : Normal, Produit et Addition. Chaque mode est testé avec des valeurs connues. |
+| v0.2.5 | Erreurs propres | Un type d'erreur défini avec `thiserror`, et l'export utilise `?` au lieu de `unwrap`. |
+| v0.2.6 | Code propre | `cargo fmt --check` et `cargo clippy -- -D warnings` ne signalent plus rien. |
 
 ### Fenêtre et GPU
 
