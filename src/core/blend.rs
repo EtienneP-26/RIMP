@@ -99,7 +99,10 @@ mod tests {
     fn produit_multiplie_les_couleurs() {
         let src = px(0.5, 0.5, 0.5, 1.0);
         let dst = px(0.5, 1.0, 0.0, 1.0);
-        assert_eq!(blend(BlendMode::Multiply, src, dst), px(0.25, 0.5, 0.0, 1.0));
+        assert_eq!(
+            blend(BlendMode::Multiply, src, dst),
+            px(0.25, 0.5, 0.0, 1.0)
+        );
     }
 
     #[test]

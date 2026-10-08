@@ -2,8 +2,8 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-use png::{BitDepth, ColorType, Encoder, EncodingError};
 use crate::core::{Pixel, TILE_SIZE, Tile};
+use png::{BitDepth, ColorType, Encoder, EncodingError};
 
 /// # Converts a float channel (0.0 to 1.0) into a byte.
 ///
@@ -94,7 +94,9 @@ pub fn export_tile_png(tile: &Tile, path: impl AsRef<Path>) -> Result<(), Encodi
     encoder.set_color(ColorType::Rgba);
     encoder.set_depth(BitDepth::Eight);
 
-    encoder.write_header()?.write_image_data(&tile_to_rgba8(tile))
+    encoder
+        .write_header()?
+        .write_image_data(&tile_to_rgba8(tile))
 }
 
 #[cfg(test)]
@@ -153,7 +155,10 @@ mod tests {
         let mut buf = vec![0; reader.output_buffer_size().unwrap()];
         let info = reader.next_frame(&mut buf).unwrap();
 
-        assert_eq!((info.width, info.height), (TILE_SIZE as u32, TILE_SIZE as u32));
+        assert_eq!(
+            (info.width, info.height),
+            (TILE_SIZE as u32, TILE_SIZE as u32)
+        );
         assert_eq!(&buf[..4], &[255, 0, 0, 255]);
 
         std::fs::remove_file(path).unwrap();
