@@ -1,14 +1,10 @@
 use super::pixel::{Pixel, blend_normal};
 
-/// # How a source pixel is combined with the one below it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BlendMode {
-    /// The source covers the destination according to its alpha.
     #[default]
     Normal,
-    /// Colours are multiplied: the result is never lighter.
     Multiply,
-    /// Colours are summed: the result is never darker.
     Add,
 }
 
