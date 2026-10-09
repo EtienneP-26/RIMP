@@ -4,7 +4,7 @@ use wgpu::{
     FilterMode, FragmentState, MultisampleState, Origin3d, PipelineLayoutDescriptor,
     PrimitiveState, Queue, RenderPass, RenderPipeline, RenderPipelineDescriptor,
     SamplerBindingType, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages,
-    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureDescriptor,
+    TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureAspect, TextureDescriptor,
     TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
     TextureViewDimension, VertexState,
 };
@@ -13,6 +13,8 @@ use wgpu::{
 pub struct Canvas {
     pipeline: RenderPipeline,
     bind_group: BindGroup,
+    texture: Texture,
+    size: Extent3d,
 }
 
 impl Canvas {
@@ -36,7 +38,14 @@ impl Canvas {
         width: u32,
         height: u32,
     ) -> Self {
-        let view = upload_texture(device, queue, rgba, width, height);
+        let size = Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = create_texture(device, size);
+        write_pixels(queue, &texture, size, rgba);
+        let view = texture.create_view(&TextureViewDescriptor::default());
         let sampler = device.create_sampler(&SamplerDescriptor {
             address_mode_u: AddressMode::ClampToEdge,
             address_mode_v: AddressMode::ClampToEdge,
@@ -85,7 +94,18 @@ impl Canvas {
         Self {
             pipeline: create_pipeline(device, &layout, target_format),
             bind_group,
+            texture,
+            size,
         }
+    }
+
+    /// # Replaces the pixels of the image already on the GPU.
+    ///
+    /// ## Arguments
+    /// * `queue` - The GPU queue, used to upload the pixels
+    /// * `rgba` - The new pixels, same size as the image given to `new`
+    pub fn update(&self, queue: &Queue, rgba: &[u8]) {
+        write_pixels(queue, &self.texture, self.size, rgba);
     }
 
     /// # Draws the image over the whole render target.
@@ -99,20 +119,9 @@ impl Canvas {
     }
 }
 
-/// # Creates a GPU texture holding the given pixels.
-fn upload_texture(
-    device: &Device,
-    queue: &Queue,
-    rgba: &[u8],
-    width: u32,
-    height: u32,
-) -> wgpu::TextureView {
-    let size = Extent3d {
-        width,
-        height,
-        depth_or_array_layers: 1,
-    };
-    let texture = device.create_texture(&TextureDescriptor {
+/// # Creates an empty GPU texture of the given size.
+fn create_texture(device: &Device, size: Extent3d) -> Texture {
+    device.create_texture(&TextureDescriptor {
         label: Some("canvas texture"),
         size,
         mip_level_count: 1,
@@ -121,11 +130,14 @@ fn upload_texture(
         format: TextureFormat::Rgba8UnormSrgb,
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
-    });
+    })
+}
 
+/// # Copies RGBA8 pixels into a texture.
+fn write_pixels(queue: &Queue, texture: &Texture, size: Extent3d, rgba: &[u8]) {
     queue.write_texture(
         TexelCopyTextureInfo {
-            texture: &texture,
+            texture,
             mip_level: 0,
             origin: Origin3d::ZERO,
             aspect: TextureAspect::All,
@@ -133,13 +145,11 @@ fn upload_texture(
         rgba,
         TexelCopyBufferLayout {
             offset: 0,
-            bytes_per_row: Some(4 * width),
-            rows_per_image: Some(height),
+            bytes_per_row: Some(4 * size.width),
+            rows_per_image: Some(size.height),
         },
         size,
     );
-
-    texture.create_view(&TextureViewDescriptor::default())
 }
 
 /// # Creates the pipeline that draws a texture over the whole screen.
