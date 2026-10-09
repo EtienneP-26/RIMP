@@ -1,3 +1,6 @@
 fn main() {
-    println!("Hello, world!");
+    if let Err(error) = rimp::app::run() {
+        eprintln!("rimp: {error}");
+        std::process::exit(1);
+    }
 }
