@@ -82,6 +82,14 @@ impl Gpu {
         self.surface.configure(&self.device, &self.config);
     }
 
+    /// # Sends new pixels to the image shown in the window.
+    ///
+    /// ## Arguments
+    /// * `rgba` - The pixels, same size as the image given to `new`
+    pub fn update_canvas(&self, rgba: &[u8]) {
+        self.canvas.update(&self.queue, rgba);
+    }
+
     /// # Draws one frame: the background colour, then the image over the whole window.
     ///
     /// A frame that cannot be acquired (window hidden, surface outdated) is skipped.

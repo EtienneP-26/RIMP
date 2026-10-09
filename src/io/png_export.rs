@@ -49,6 +49,17 @@ pub fn pixel_to_rgba8(pixel: Pixel) -> [u8; 4] {
     ]
 }
 
+/// # Converts a list of pixels into a flat RGBA8 buffer.
+///
+/// ## Arguments
+/// * `pixels` - Premultiplied pixels, row by row
+///
+/// ## Returns
+/// A buffer of `pixels.len() * 4` bytes.
+pub fn pixels_to_rgba8(pixels: &[Pixel]) -> Vec<u8> {
+    pixels.iter().flat_map(|p| pixel_to_rgba8(*p)).collect()
+}
+
 /// # Converts a tile into a flat RGBA8 buffer, row by row.
 ///
 /// ## Arguments
@@ -125,6 +136,12 @@ mod tests {
     #[test]
     fn valeurs_hors_plage_sont_bornees() {
         assert_eq!(pixel_to_rgba8(px(2.0, 0.0, 0.0, 1.0)), [255, 0, 0, 255]);
+    }
+
+    #[test]
+    fn liste_de_pixels_donne_quatre_octets_chacun() {
+        let pixels = [px(1.0, 0.0, 0.0, 1.0), Pixel::default()];
+        assert_eq!(pixels_to_rgba8(&pixels), [255, 0, 0, 255, 0, 0, 0, 0]);
     }
 
     #[test]
