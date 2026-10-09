@@ -52,6 +52,23 @@ impl Gpu {
         })
     }
 
+    /// # Adapts the drawing surface to a new window size.
+    ///
+    /// A size of zero (minimized window) is ignored.
+    ///
+    /// ## Arguments
+    /// * `width` - New width in pixels
+    /// * `height` - New height in pixels
+    pub fn resize(&mut self, width: u32, height: u32) {
+        if width == 0 || height == 0 {
+            return;
+        }
+
+        self.config.width = width;
+        self.config.height = height;
+        self.surface.configure(&self.device, &self.config);
+    }
+
     /// # Fills the whole window with a single colour.
     ///
     /// A frame that cannot be acquired (window hidden, surface outdated) is skipped.

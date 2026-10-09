@@ -6,7 +6,7 @@
 
 **Dernière version stable** : v0.1.0
 
-**En développement** : v0.2.4
+**En développement** : v0.3.1
 
 ## Sommaire
 
@@ -61,7 +61,15 @@ cargo build --release
 
 Avant de coder, lis [CONTRIBUTING.md](CONTRIBUTING.md) : format des commits (`type(scope): message`), nom des branches (`type/description-courte`, créées depuis `dev`) et hooks git.
 
-Les bibliothèques système nécessaires à la fenêtre et au GPU (Wayland, Vulkan) seront listées ici à la v0.3.2.
+Bibliothèques système nécessaires à la fenêtre et au GPU (Wayland, Vulkan). Sur Debian/Ubuntu :
+```bash
+sudo apt install libwayland-client0 libxkbcommon0 libvulkan1 mesa-vulkan-drivers
+```
+- `libwayland-client0` et `libxkbcommon0` : la fenêtre (Wayland) et le clavier.
+- `libvulkan1` et `mesa-vulkan-drivers` : le GPU. Pour une carte NVIDIA, installe plutôt le pilote propriétaire.
+- Optionnel : `vulkan-tools` (`vulkaninfo` vérifie que Vulkan fonctionne) et `libinput-tools` (`libinput debug-events` teste la tablette).
+
+Ces bibliothèques sont chargées à l'exécution : elles ne sont pas nécessaires pour compiler.
 
 ## Utilisation
 

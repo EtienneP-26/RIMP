@@ -46,6 +46,12 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::Resized(size) => {
+                if let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) {
+                    gpu.resize(size.width, size.height);
+                    window.request_redraw();
+                }
+            }
             WindowEvent::RedrawRequested => {
                 if let Some(gpu) = &self.gpu {
                     gpu.clear(BACKGROUND);
