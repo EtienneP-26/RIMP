@@ -1,10 +1,13 @@
 [package]
 name = "rimp"
-version = "0.2.4"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
 png = "0.18.1"
+pollster = "1"
+wgpu = "30"
+winit = "0.30"
 
 [profile.dev]
 opt-level = 1
