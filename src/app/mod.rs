@@ -1,3 +1,4 @@
+mod canvas;
 mod gpu;
 
 use std::error::Error;
@@ -8,9 +9,11 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
+use crate::core::{Pixel, TILE_SIZE, Tile};
+use crate::io::tile_to_rgba8;
 use gpu::Gpu;
 
-/// Dark grey that fills the window until there is a canvas to draw.
+/// Dark grey behind the canvas.
 const BACKGROUND: wgpu::Color = wgpu::Color {
     r: 0.1,
     g: 0.1,
@@ -54,7 +57,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(gpu) = &self.gpu {
-                    gpu.clear(BACKGROUND);
+                    gpu.render(BACKGROUND);
                 }
             }
             _ => {}
@@ -68,9 +71,33 @@ fn create_window_and_gpu(
 ) -> Result<(Arc<Window>, Gpu), Box<dyn Error>> {
     let window =
         Arc::new(event_loop.create_window(Window::default_attributes().with_title("RIMP"))?);
-    let gpu = Gpu::new(window.clone())?;
+    let rgba = tile_to_rgba8(&checkerboard());
+    let gpu = Gpu::new(window.clone(), &rgba, TILE_SIZE as u32, TILE_SIZE as u32)?;
 
     Ok((window, gpu))
+}
+
+/// # Builds a test tile: a light and dark grey checkerboard of 8-pixel squares.
+fn checkerboard() -> Tile {
+    let mut tile = Tile::new();
+
+    for y in 0..TILE_SIZE {
+        for x in 0..TILE_SIZE {
+            let level = if (x / 8 + y / 8) % 2 == 0 { 0.8 } else { 0.3 };
+            tile.set(
+                x,
+                y,
+                Pixel {
+                    r: level,
+                    g: level,
+                    b: level,
+                    a: 1.0,
+                },
+            );
+        }
+    }
+
+    tile
 }
 
 /// # Opens the RIMP window and runs until it is closed.

@@ -8,12 +8,15 @@ use wgpu::{
 };
 use winit::window::Window;
 
+use super::canvas::Canvas;
+
 /// # The GPU objects needed to draw into one window.
 pub struct Gpu {
     surface: Surface<'static>,
     device: Device,
     queue: Queue,
     config: SurfaceConfiguration,
+    canvas: Canvas,
 }
 
 impl Gpu {
@@ -21,13 +24,21 @@ impl Gpu {
     ///
     /// ## Arguments
     /// * `window` - The window to draw into
+    /// * `rgba` - The image shown over the whole window, 4 bytes per pixel
+    /// * `width` - Image width in pixels
+    /// * `height` - Image height in pixels
     ///
     /// ## Returns
     /// The ready-to-use `Gpu`.
     ///
     /// ## Errors
     /// If no graphics adapter is found, or if the surface or device cannot be created.
-    pub fn new(window: Arc<Window>) -> Result<Self, Box<dyn Error>> {
+    pub fn new(
+        window: Arc<Window>,
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+    ) -> Result<Self, Box<dyn Error>> {
         let size = window.inner_size();
         let instance = Instance::new(InstanceDescriptor::new_without_display_handle());
         let surface = instance.create_surface(window)?;
@@ -43,12 +54,14 @@ impl Gpu {
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .ok_or("the surface is not supported by this graphics adapter")?;
         surface.configure(&device, &config);
+        let canvas = Canvas::new(&device, &queue, config.format, rgba, width, height);
 
         Ok(Self {
             surface,
             device,
             queue,
             config,
+            canvas,
         })
     }
 
@@ -69,13 +82,13 @@ impl Gpu {
         self.surface.configure(&self.device, &self.config);
     }
 
-    /// # Fills the whole window with a single colour.
+    /// # Draws one frame: the background colour, then the image over the whole window.
     ///
     /// A frame that cannot be acquired (window hidden, surface outdated) is skipped.
     ///
     /// ## Arguments
-    /// * `color` - The colour to fill the window with
-    pub fn clear(&self, color: Color) {
+    /// * `color` - The background colour
+    pub fn render(&self, color: Color) {
         let frame = match self.surface.get_current_texture() {
             CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
                 frame
@@ -90,7 +103,7 @@ impl Gpu {
         let view = frame.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
-        encoder.begin_render_pass(&RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: &view,
                 depth_slice: None,
@@ -102,6 +115,8 @@ impl Gpu {
             })],
             ..Default::default()
         });
+        self.canvas.draw(&mut pass);
+        drop(pass);
 
         self.queue.submit([encoder.finish()]);
         self.queue.present(frame);
