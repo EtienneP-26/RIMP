@@ -4,9 +4,12 @@ version = "0.3.4"
 edition = "2024"
 
 [dependencies]
+egui = "0.35.0"
+egui-wgpu = "0.35.0"
+egui-winit = "0.35.0"
+octotablet = { git = "https://github.com/Fuzzyzilla/octotablet" }
 png = "0.18.1"
 pollster = "1"
-wgpu = "30"
 winit = "0.30"
 
 [profile.dev]

@@ -48,38 +48,26 @@ impl Drawing {
         pixels_to_rgba8(self.raster.pixels())
     }
 
-    /// # Starts a stroke: puts the pen down at a point.
+    /// # Paints at a point, continuing the stroke in progress.
+    ///
+    /// The first point of a stroke is a disk; the next ones are joined to the previous one
+    /// by a line, so a fast stroke leaves no gap.
     ///
     /// ## Arguments
     /// * `point` - Position on the image, as `(x, y)` in pixels
-    /// * `pressure` - Pen pressure from 0.0 to 1.0, or NaN when there is none (mouse)
-    pub fn press(&mut self, point: (f32, f32), pressure: f32) {
-        stamp_disk(&mut self.raster, point, radius(pressure), INK);
+    /// * `pressure` - Pen pressure from 0.0 to 1.0
+    pub fn paint(&mut self, point: (f32, f32), pressure: f32) {
+        let radius = radius(pressure);
+
+        match self.last_point {
+            Some(last) => stamp_line(&mut self.raster, last, point, radius, INK),
+            None => stamp_disk(&mut self.raster, point, radius, INK),
+        }
         self.last_point = Some(point);
     }
 
-    /// # Continues the stroke up to a new point.
-    ///
-    /// Does nothing if no stroke is in progress.
-    ///
-    /// ## Arguments
-    /// * `point` - Position on the image, as `(x, y)` in pixels
-    /// * `pressure` - Pen pressure from 0.0 to 1.0, or NaN when there is none (mouse)
-    ///
-    /// ## Returns
-    /// `true` if the image changed.
-    pub fn drag(&mut self, point: (f32, f32), pressure: f32) -> bool {
-        let Some(last) = self.last_point else {
-            return false;
-        };
-
-        stamp_line(&mut self.raster, last, point, radius(pressure), INK);
-        self.last_point = Some(point);
-        true
-    }
-
-    /// # Ends the stroke: lifts the pen.
-    pub fn release(&mut self) {
+    /// # Ends the stroke: the next `paint` starts a new one.
+    pub fn lift(&mut self) {
         self.last_point = None;
     }
 }
@@ -102,10 +90,13 @@ pub fn screen_to_image(position: (f32, f32), screen: (f32, f32), image: (f32, f3
     )
 }
 
-/// # Brush radius for a pressure; a missing pressure (NaN) counts as full pressure.
+/// # Brush radius for a pressure; an invalid pressure (NaN) counts as full pressure.
 fn radius(pressure: f32) -> f32 {
-    let pressure = if pressure.is_nan() { 1.0 } else { pressure };
-    MAX_RADIUS * pressure.clamp(0.0, 1.0)
+    if pressure.is_nan() {
+        MAX_RADIUS
+    } else {
+        MAX_RADIUS * pressure.clamp(0.0, 1.0)
+    }
 }
 
 #[cfg(test)]
@@ -124,33 +115,27 @@ mod tests {
     }
 
     #[test]
-    fn press_peint_sous_le_stylet() {
+    fn paint_peint_sous_le_stylet() {
         let mut drawing = Drawing::new(50, 50);
-        drawing.press((25.5, 25.5), 1.0);
+        drawing.paint((25.5, 25.5), 1.0);
         assert!(pixel_noir(&drawing, 25, 25));
     }
 
     #[test]
-    fn drag_sans_press_ne_fait_rien() {
-        let mut drawing = Drawing::new(50, 50);
-        assert!(!drawing.drag((25.5, 25.5), 1.0));
-        assert!(!pixel_noir(&drawing, 25, 25));
-    }
-
-    #[test]
-    fn drag_relie_les_points() {
+    fn paint_relie_les_points_du_meme_trait() {
         let mut drawing = Drawing::new(60, 20);
-        drawing.press((10.5, 10.5), 1.0);
-        assert!(drawing.drag((50.5, 10.5), 1.0));
+        drawing.paint((10.5, 10.5), 1.0);
+        drawing.paint((50.5, 10.5), 1.0);
         assert!((10..51).all(|x| pixel_noir(&drawing, x, 10)));
     }
 
     #[test]
-    fn release_termine_le_trait() {
-        let mut drawing = Drawing::new(50, 50);
-        drawing.press((10.5, 10.5), 1.0);
-        drawing.release();
-        assert!(!drawing.drag((40.5, 40.5), 1.0));
+    fn lift_termine_le_trait() {
+        let mut drawing = Drawing::new(60, 20);
+        drawing.paint((10.5, 10.5), 1.0);
+        drawing.lift();
+        drawing.paint((50.5, 10.5), 1.0);
+        assert!(!pixel_noir(&drawing, 30, 10));
     }
 
     #[test]

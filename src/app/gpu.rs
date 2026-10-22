@@ -1,3 +1,4 @@
+use egui_wgpu::wgpu;
 use std::error::Error;
 use std::sync::Arc;
 
@@ -6,9 +7,11 @@ use wgpu::{
     Operations, Queue, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions,
     StoreOp, Surface, SurfaceConfiguration, TextureViewDescriptor,
 };
+use winit::event::WindowEvent;
 use winit::window::Window;
 
 use super::canvas::Canvas;
+use super::overlay::Overlay;
 
 /// # The GPU objects needed to draw into one window.
 pub struct Gpu {
@@ -17,6 +20,7 @@ pub struct Gpu {
     queue: Queue,
     config: SurfaceConfiguration,
     canvas: Canvas,
+    overlay: Overlay,
 }
 
 impl Gpu {
@@ -41,7 +45,7 @@ impl Gpu {
     ) -> Result<Self, Box<dyn Error>> {
         let size = window.inner_size();
         let instance = Instance::new(InstanceDescriptor::new_without_display_handle());
-        let surface = instance.create_surface(window)?;
+        let surface = instance.create_surface(window.clone())?;
 
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
             compatible_surface: Some(&surface),
@@ -55,6 +59,7 @@ impl Gpu {
             .ok_or("the surface is not supported by this graphics adapter")?;
         surface.configure(&device, &config);
         let canvas = Canvas::new(&device, &queue, config.format, rgba, width, height);
+        let overlay = Overlay::new(&window, &device, config.format);
 
         Ok(Self {
             surface,
@@ -62,6 +67,7 @@ impl Gpu {
             queue,
             config,
             canvas,
+            overlay,
         })
     }
 
@@ -90,13 +96,27 @@ impl Gpu {
         self.canvas.update(&self.queue, rgba);
     }
 
-    /// # Draws one frame: the background colour, then the image over the whole window.
+    /// # Gives a window event to the interface.
+    ///
+    /// ## Returns
+    /// What the interface did with it, see `Overlay::on_event`.
+    pub fn on_window_event(
+        &mut self,
+        window: &Window,
+        event: &WindowEvent,
+    ) -> egui_winit::EventResponse {
+        self.overlay.on_event(window, event)
+    }
+
+    /// # Draws one frame: the background colour, the image over the whole window, then the interface.
     ///
     /// A frame that cannot be acquired (window hidden, surface outdated) is skipped.
     ///
     /// ## Arguments
     /// * `color` - The background colour
-    pub fn render(&self, color: Color) {
+    /// * `window` - The window being drawn
+    /// * `show` - Describes the interface drawn over the image
+    pub fn render(&mut self, color: Color, window: &Window, show: impl FnMut(&egui::Context)) {
         let frame = match self.surface.get_current_texture() {
             CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
                 frame
@@ -110,6 +130,9 @@ impl Gpu {
 
         let view = frame.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
+        let overlay_frame =
+            self.overlay
+                .prepare(window, &self.device, &self.queue, &mut encoder, show);
 
         let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             color_attachments: &[Some(RenderPassColorAttachment {
@@ -124,9 +147,11 @@ impl Gpu {
             ..Default::default()
         });
         self.canvas.draw(&mut pass);
-        drop(pass);
+        self.overlay.paint(&mut pass.forget_lifetime(), &overlay_frame);
 
-        self.queue.submit([encoder.finish()]);
-        self.queue.present(frame);
+        let mut commands = self.overlay.finish(overlay_frame);
+        commands.push(encoder.finish());
+        self.queue.submit(commands);
+        frame.present();
     }
 }

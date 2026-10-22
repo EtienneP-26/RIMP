@@ -1,12 +1,11 @@
+use egui_wgpu::wgpu;
 use wgpu::{
-    AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, ColorTargetState, Device, Extent3d,
-    FilterMode, FragmentState, MultisampleState, Origin3d, PipelineLayoutDescriptor,
+    AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindingResource,
+    ColorTargetState, Device, Extent3d, FilterMode, FragmentState, MultisampleState, Origin3d,
     PrimitiveState, Queue, RenderPass, RenderPipeline, RenderPipelineDescriptor,
-    SamplerBindingType, SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, ShaderStages,
-    TexelCopyBufferLayout, TexelCopyTextureInfo, Texture, TextureAspect, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureViewDescriptor,
-    TextureViewDimension, VertexState,
+    SamplerDescriptor, ShaderModuleDescriptor, ShaderSource, TexelCopyBufferLayout,
+    TexelCopyTextureInfo, Texture, TextureAspect, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureViewDescriptor, VertexState,
 };
 
 /// # An RGBA8 image drawn over the whole window.
@@ -54,31 +53,11 @@ impl Canvas {
             ..Default::default()
         });
 
-        let layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some("canvas layout"),
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
+        let pipeline = create_pipeline(device, target_format);
 
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: Some("canvas bind group"),
-            layout: &layout,
+            layout: &pipeline.get_bind_group_layout(0),
             entries: &[
                 BindGroupEntry {
                     binding: 0,
@@ -92,7 +71,7 @@ impl Canvas {
         });
 
         Self {
-            pipeline: create_pipeline(device, &layout, target_format),
+            pipeline,
             bind_group,
             texture,
             size,
@@ -153,24 +132,17 @@ fn write_pixels(queue: &Queue, texture: &Texture, size: Extent3d, rgba: &[u8]) {
 }
 
 /// # Creates the pipeline that draws a texture over the whole screen.
-fn create_pipeline(
-    device: &Device,
-    bind_group_layout: &wgpu::BindGroupLayout,
-    target_format: TextureFormat,
-) -> RenderPipeline {
+///
+/// The layout of the bindings is worked out by wgpu from the shader.
+fn create_pipeline(device: &Device, target_format: TextureFormat) -> RenderPipeline {
     let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some("canvas shader"),
         source: ShaderSource::Wgsl(include_str!("canvas.wgsl").into()),
     });
-    let layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-        label: Some("canvas pipeline layout"),
-        bind_group_layouts: &[Some(bind_group_layout)],
-        ..Default::default()
-    });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
         label: Some("canvas pipeline"),
-        layout: Some(&layout),
+        layout: None,
         vertex: VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
