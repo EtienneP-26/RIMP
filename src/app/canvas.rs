@@ -78,13 +78,26 @@ impl Canvas {
         }
     }
 
-    /// # Replaces the pixels of the image already on the GPU.
+    /// # Replaces one rectangle of the image already on the GPU.
     ///
     /// ## Arguments
     /// * `queue` - The GPU queue, used to upload the pixels
-    /// * `rgba` - The new pixels, same size as the image given to `new`
-    pub fn update(&self, queue: &Queue, rgba: &[u8]) {
-        write_pixels(queue, &self.texture, self.size, rgba);
+    /// * `rect` - `(x, y, width, height)` in pixels; clipped to the image
+    /// * `rgba` - The rectangle's pixels, 4 bytes each, row by row
+    pub fn update_region(&self, queue: &Queue, rect: (u32, u32, u32, u32), rgba: &[u8]) {
+        let (x, y, w, h) = rect;
+        let w = w.min(self.size.width.saturating_sub(x));
+        let h = h.min(self.size.height.saturating_sub(y));
+        if w == 0 || h == 0 || rgba.len() < (4 * w * h) as usize {
+            return;
+        }
+        let origin = Origin3d { x, y, z: 0 };
+        let extent = Extent3d {
+            width: w,
+            height: h,
+            depth_or_array_layers: 1,
+        };
+        write_region(queue, &self.texture, origin, extent, rgba);
     }
 
     /// # Draws the image over the whole render target.
@@ -114,11 +127,22 @@ fn create_texture(device: &Device, size: Extent3d) -> Texture {
 
 /// # Copies RGBA8 pixels into a texture.
 fn write_pixels(queue: &Queue, texture: &Texture, size: Extent3d, rgba: &[u8]) {
+    write_region(queue, texture, Origin3d::ZERO, size, rgba);
+}
+
+/// # Copies RGBA8 pixels into a rectangle of a texture.
+fn write_region(
+    queue: &Queue,
+    texture: &Texture,
+    origin: Origin3d,
+    size: Extent3d,
+    rgba: &[u8],
+) {
     queue.write_texture(
         TexelCopyTextureInfo {
             texture,
             mip_level: 0,
-            origin: Origin3d::ZERO,
+            origin,
             aspect: TextureAspect::All,
         },
         rgba,

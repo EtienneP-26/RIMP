@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use super::pixel::Pixel;
 use super::tile::{TILE_SIZE, Tile};
 
@@ -11,6 +13,7 @@ pub struct Raster {
     background: Pixel,
     tiles_per_row: usize,
     tiles: Vec<Option<Tile>>,
+    dirty: BTreeSet<usize>,
 }
 
 impl Raster {
@@ -40,6 +43,7 @@ impl Raster {
             background: fill,
             tiles_per_row,
             tiles: vec![None; tiles_per_row * tiles_per_column],
+            dirty: BTreeSet::new(),
         }
     }
 
@@ -60,8 +64,31 @@ impl Raster {
 
     /// # All the pixels, row by row (empty tiles read as the background).
     pub fn pixels(&self) -> Vec<Pixel> {
-        let coords = (0..self.height).flat_map(|y| (0..self.width).map(move |x| (x, y)));
-        coords.map(|(x, y)| self.read(x, y)).collect()
+        self.region(0, 0, self.width, self.height)
+    }
+
+    /// # The pixels of a rectangle, row by row; it must lie inside the image.
+    pub fn region(&self, x: usize, y: usize, w: usize, h: usize) -> Vec<Pixel> {
+        let coords = (y..y + h).flat_map(|py| (x..x + w).map(move |px| (px, py)));
+        coords.map(|(px, py)| self.read(px, py)).collect()
+    }
+
+    /// # Drains the tiles written since the last call.
+    ///
+    /// ## Returns
+    /// One `(x, y, width, height)` rectangle per tile, in pixels, clipped at the image edges.
+    pub fn take_dirty(&mut self) -> Vec<(usize, usize, usize, usize)> {
+        let dirty = std::mem::take(&mut self.dirty);
+        dirty.into_iter().map(|index| self.tile_rect(index)).collect()
+    }
+
+    /// # Pixel rectangle `(x, y, width, height)` covered by a tile, clipped at the edges.
+    fn tile_rect(&self, index: usize) -> (usize, usize, usize, usize) {
+        let x = (index % self.tiles_per_row) * TILE_SIZE;
+        let y = (index / self.tiles_per_row) * TILE_SIZE;
+        let w = TILE_SIZE.min(self.width - x);
+        let h = TILE_SIZE.min(self.height - y);
+        (x, y, w, h)
     }
 
     /// # Reads the pixel at `(x, y)`.
@@ -80,6 +107,7 @@ impl Raster {
             return;
         }
         let index = self.tile_index(x, y);
+        self.dirty.insert(index);
         self.tiles[index]
             .get_or_insert_with(|| Tile::filled(self.background))
             .set(x % TILE_SIZE, y % TILE_SIZE, pixel);
@@ -168,5 +196,42 @@ mod tests {
         image.set(100, 0, ROUGE);
         image.set(0, 100, ROUGE);
         assert_eq!(image.allocated_tiles(), 0);
+    }
+
+    #[test]
+    fn ecriture_marque_la_bonne_tuile() {
+        let mut image = Raster::new(200, 100, Pixel::default());
+        image.set(70, 5, ROUGE);
+        assert_eq!(image.take_dirty(), vec![(64, 0, 64, 64)]);
+    }
+
+    #[test]
+    fn take_dirty_vide_l_ensemble() {
+        let mut image = Raster::new(200, 100, Pixel::default());
+        image.set(1, 1, ROUGE);
+        assert_eq!(image.take_dirty().len(), 1);
+        assert!(image.take_dirty().is_empty());
+    }
+
+    #[test]
+    fn ecriture_a_la_frontiere_marque_deux_tuiles() {
+        let mut image = Raster::new(200, 100, Pixel::default());
+        image.set(63, 5, ROUGE);
+        image.set(64, 5, ROUGE);
+        assert_eq!(image.take_dirty().len(), 2);
+    }
+
+    #[test]
+    fn tuile_du_bord_est_rognee() {
+        let mut image = Raster::new(200, 100, Pixel::default());
+        image.set(199, 99, ROUGE);
+        assert_eq!(image.take_dirty(), vec![(192, 64, 8, 36)]);
+    }
+
+    #[test]
+    fn ecriture_hors_limites_ne_marque_rien() {
+        let mut image = Raster::new(100, 100, Pixel::default());
+        image.set(100, 0, ROUGE);
+        assert!(image.take_dirty().is_empty());
     }
 }

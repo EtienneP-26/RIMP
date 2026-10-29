@@ -19,6 +19,9 @@ const INK: Pixel = Pixel {
     a: 1.0,
 };
 
+/// A changed rectangle `(x, y, width, height)` and its RGBA8 bytes.
+pub type TileUpdate = ((usize, usize, usize, usize), Vec<u8>);
+
 /// # The image being painted and the stroke in progress.
 pub struct Drawing {
     raster: Raster,
@@ -46,6 +49,19 @@ impl Drawing {
     /// # The image as RGBA8 bytes, ready to be sent to the GPU.
     pub fn to_rgba8(&self) -> Vec<u8> {
         pixels_to_rgba8(&self.raster.pixels())
+    }
+
+    /// # Drains the tiles painted since the last call, with their RGBA8 bytes.
+    ///
+    /// ## Returns
+    /// One `((x, y, width, height), rgba)` per tile, ready for `Canvas::update_region`.
+    pub fn take_dirty_rgba8(&mut self) -> Vec<TileUpdate> {
+        let rects = self.raster.take_dirty();
+        let upload = |(x, y, w, h)| {
+            let pixels = self.raster.region(x, y, w, h);
+            ((x, y, w, h), pixels_to_rgba8(&pixels))
+        };
+        rects.into_iter().map(upload).collect()
     }
 
     /// # Paints at a point, continuing the stroke in progress.
