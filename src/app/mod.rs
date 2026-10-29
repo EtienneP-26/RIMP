@@ -146,7 +146,7 @@ impl App {
         };
 
         if self.canvas_dirty {
-            gpu.update_canvas(&self.drawing.to_rgba8());
+            gpu.update_canvas(self.drawing.take_dirty_rgba8());
             self.canvas_dirty = false;
         }
 

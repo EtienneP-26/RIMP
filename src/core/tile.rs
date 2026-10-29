@@ -26,6 +26,13 @@ impl Tile {
         }
     }
 
+    /// # Creates a tile with every pixel set to `pixel`.
+    pub fn filled(pixel: Pixel) -> Self {
+        Self {
+            pixels: vec![pixel; TILE_SIZE * TILE_SIZE],
+        }
+    }
+
     /// # Reads the pixel at position `(x, y)`.
     ///
     /// ## Arguments
@@ -115,6 +122,11 @@ mod tests {
         let tile = Tile::new();
         assert_eq!(tile.get(0, 0), Pixel::default());
         assert_eq!(tile.get(63, 63), Pixel::default());
+    }
+
+    #[test]
+    fn tuile_remplie_a_la_valeur_donnee() {
+        assert_eq!(Tile::filled(ROUGE).get(5, 7), ROUGE);
     }
 
     #[test]

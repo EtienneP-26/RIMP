@@ -11,6 +11,7 @@ use winit::event::WindowEvent;
 use winit::window::Window;
 
 use super::canvas::Canvas;
+use super::drawing::TileUpdate;
 use super::overlay::Overlay;
 
 /// # The GPU objects needed to draw into one window.
@@ -88,12 +89,15 @@ impl Gpu {
         self.surface.configure(&self.device, &self.config);
     }
 
-    /// # Sends new pixels to the image shown in the window.
+    /// # Sends the changed tiles to the image shown in the window.
     ///
     /// ## Arguments
-    /// * `rgba` - The pixels, same size as the image given to `new`
-    pub fn update_canvas(&self, rgba: &[u8]) {
-        self.canvas.update(&self.queue, rgba);
+    /// * `tiles` - The changed rectangles and their RGBA8 pixels
+    pub fn update_canvas(&self, tiles: Vec<TileUpdate>) {
+        for ((x, y, w, h), rgba) in tiles {
+            let rect = (x as u32, y as u32, w as u32, h as u32);
+            self.canvas.update_region(&self.queue, rect, &rgba);
+        }
     }
 
     /// # Gives a window event to the interface.
