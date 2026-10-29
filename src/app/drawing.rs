@@ -45,7 +45,7 @@ impl Drawing {
 
     /// # The image as RGBA8 bytes, ready to be sent to the GPU.
     pub fn to_rgba8(&self) -> Vec<u8> {
-        pixels_to_rgba8(self.raster.pixels())
+        pixels_to_rgba8(&self.raster.pixels())
     }
 
     /// # Paints at a point, continuing the stroke in progress.
