@@ -6,7 +6,7 @@
 
 **Dernière version stable** : v0.1.0
 
-**En développement** : v0.5.0
+**En développement** : v0.5.2
 
 ## Sommaire
 
