@@ -13,6 +13,7 @@ use winit::window::Window;
 use super::canvas::Canvas;
 use super::drawing::TileUpdate;
 use super::overlay::Overlay;
+use crate::core::viewport::Viewport;
 
 /// # The GPU objects needed to draw into one window.
 pub struct Gpu {
@@ -98,6 +99,11 @@ impl Gpu {
             let rect = (x as u32, y as u32, w as u32, h as u32);
             self.canvas.update_region(&self.queue, rect, &rgba);
         }
+    }
+
+    /// # Sends the viewport to the canvas shader.
+    pub fn set_viewport(&self, viewport: &Viewport) {
+        self.canvas.set_viewport(&self.queue, viewport);
     }
 
     /// # Gives a window event to the interface.
