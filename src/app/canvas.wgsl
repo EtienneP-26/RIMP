@@ -17,8 +17,14 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 
 @group(0) @binding(0) var canvas_texture: texture_2d<f32>;
 @group(0) @binding(1) var canvas_sampler: sampler;
+// Maps a screen uv to a canvas uv (inverse of the viewport). Columns are padded to 16 bytes.
+@group(0) @binding(2) var<uniform> view_to_canvas: mat3x3<f32>;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(canvas_texture, canvas_sampler, in.uv);
+    let uv = (view_to_canvas * vec3<f32>(in.uv, 1.0)).xy;
+    if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) {
+        discard;
+    }
+    return textureSample(canvas_texture, canvas_sampler, uv);
 }

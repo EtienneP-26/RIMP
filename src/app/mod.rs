@@ -22,6 +22,8 @@ use drawing::{Drawing, screen_to_image};
 use gpu::Gpu;
 use pen::PenEvent;
 
+use crate::core::viewport::Viewport;
+
 /// Dark grey behind the canvas.
 const BACKGROUND: wgpu::Color = wgpu::Color {
     r: 0.1,
@@ -45,6 +47,7 @@ struct App {
     gpu: Option<Gpu>,
     tablet: Option<Manager>,
     drawing: Drawing,
+    viewport: Viewport,
     cursor: (f32, f32),
     pressed: bool,
     canvas_dirty: bool,
@@ -58,6 +61,7 @@ impl App {
             gpu: None,
             tablet: None,
             drawing: Drawing::new(IMAGE_SIZE.0, IMAGE_SIZE.1),
+            viewport: Viewport::default(),
             cursor: (0.0, 0.0),
             pressed: false,
             canvas_dirty: false,
@@ -73,7 +77,7 @@ impl App {
         });
         let image = (IMAGE_SIZE.0 as f32, IMAGE_SIZE.1 as f32);
 
-        screen_to_image(position, screen, image)
+        pen::to_canvas(screen_to_image(position, screen, image), &self.viewport)
     }
 
     /// # Paints at a point of the image and asks for a new frame.
@@ -150,6 +154,7 @@ impl App {
             self.canvas_dirty = false;
         }
 
+        gpu.set_viewport(&self.viewport);
         self.stats.begin_frame();
         let start = Instant::now();
         gpu.render(BACKGROUND, window, |ctx| self.stats.show(ctx));
