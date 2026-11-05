@@ -4,6 +4,7 @@ mod drawing;
 mod gpu;
 mod overlay;
 mod pen;
+mod view_input;
 
 use std::error::Error;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use octotablet::Manager;
 use octotablet::builder::Builder;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::keyboard::{Key, NamedKey};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
@@ -21,6 +23,7 @@ use debug::DebugStats;
 use drawing::{Drawing, screen_to_image};
 use gpu::Gpu;
 use pen::PenEvent;
+use view_input::ViewInput;
 
 use crate::core::viewport::Viewport;
 
@@ -48,6 +51,7 @@ struct App {
     tablet: Option<Manager>,
     drawing: Drawing,
     viewport: Viewport,
+    view_input: ViewInput,
     cursor: (f32, f32),
     pressed: bool,
     canvas_dirty: bool,
@@ -62,6 +66,7 @@ impl App {
             tablet: None,
             drawing: Drawing::new(IMAGE_SIZE.0, IMAGE_SIZE.1),
             viewport: Viewport::default(),
+            view_input: ViewInput::default(),
             cursor: (0.0, 0.0),
             pressed: false,
             canvas_dirty: false,
@@ -69,15 +74,47 @@ impl App {
         }
     }
 
-    /// # Converts a position in the window (physical pixels) into a position on the image.
-    fn to_image(&self, position: (f32, f32)) -> (f32, f32) {
+    /// # Converts a position in the window (physical pixels) into the view's screen space.
+    fn to_view_space(&self, position: (f32, f32)) -> (f32, f32) {
         let screen = self.window.as_ref().map_or((1.0, 1.0), |window| {
             let size = window.inner_size();
             (size.width as f32, size.height as f32)
         });
         let image = (IMAGE_SIZE.0 as f32, IMAGE_SIZE.1 as f32);
 
-        pen::to_canvas(screen_to_image(position, screen, image), &self.viewport)
+        screen_to_image(position, screen, image)
+    }
+
+    /// # Converts a position in the window (physical pixels) into a position on the image.
+    fn to_image(&self, position: (f32, f32)) -> (f32, f32) {
+        pen::to_canvas(self.to_view_space(position), &self.viewport)
+    }
+
+    /// # Pans the view if a trigger is held; returns `true` if the cursor move was a pan.
+    fn pan_to(&mut self, position: (f32, f32)) -> bool {
+        let view_position = self.to_view_space(position).into();
+        let moved = self.view_input.cursor_moved(view_position, &mut self.viewport);
+        if moved {
+            self.request_redraw();
+        }
+        self.view_input.is_panning()
+    }
+
+    /// # Updates the pan triggers (Space key, middle button).
+    fn track_pan_trigger(&mut self, event: &WindowEvent) {
+        match event {
+            WindowEvent::KeyboardInput { event, .. }
+                if event.logical_key == Key::Named(NamedKey::Space) =>
+            {
+                self.view_input.set_space(event.state.is_pressed());
+            }
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Middle,
+                ..
+            } => self.view_input.set_middle(state.is_pressed()),
+            _ => {}
+        }
     }
 
     /// # Paints at a point of the image and asks for a new frame.
@@ -186,6 +223,8 @@ impl ApplicationHandler for App {
             return;
         }
 
+        self.track_pan_trigger(&event);
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(size) => {
@@ -195,7 +234,11 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::CursorMoved { position, .. } => {
-                self.cursor = self.to_image((position.x as f32, position.y as f32));
+                let position = (position.x as f32, position.y as f32);
+                if self.pan_to(position) {
+                    return;
+                }
+                self.cursor = self.to_image(position);
                 if self.pressed {
                     self.paint(self.cursor, FULL_PRESSURE);
                 }
@@ -205,6 +248,7 @@ impl ApplicationHandler for App {
                 button: MouseButton::Left,
                 ..
             } => match state {
+                ElementState::Pressed if self.view_input.is_panning() => {}
                 ElementState::Pressed => {
                     self.pressed = true;
                     self.paint(self.cursor, FULL_PRESSURE);
