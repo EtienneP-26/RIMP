@@ -14,7 +14,7 @@ use egui_wgpu::wgpu;
 use octotablet::Manager;
 use octotablet::builder::Builder;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
@@ -24,6 +24,9 @@ use drawing::{Drawing, screen_to_image};
 use gpu::Gpu;
 use pen::PenEvent;
 use view_input::ViewInput;
+
+/// Pixels of a touchpad scroll that count as one wheel line.
+const PIXELS_PER_LINE: f32 = 50.0;
 
 use crate::core::viewport::Viewport;
 
@@ -113,7 +116,21 @@ impl App {
                 button: MouseButton::Middle,
                 ..
             } => self.view_input.set_middle(state.is_pressed()),
+            WindowEvent::ModifiersChanged(mods) => {
+                self.view_input.set_ctrl(mods.state().control_key());
+            }
             _ => {}
+        }
+    }
+
+    /// # Zooms the view on Ctrl + wheel (line or pixel deltas).
+    fn wheel_zoom(&mut self, delta: MouseScrollDelta) {
+        let lines = match delta {
+            MouseScrollDelta::LineDelta(_, y) => y,
+            MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / PIXELS_PER_LINE,
+        };
+        if self.view_input.wheel(lines, &mut self.viewport) {
+            self.request_redraw();
         }
     }
 
@@ -255,6 +272,7 @@ impl ApplicationHandler for App {
                 }
                 ElementState::Released => self.release(),
             },
+            WindowEvent::MouseWheel { delta, .. } => self.wheel_zoom(delta),
             WindowEvent::RedrawRequested => self.redraw(),
             _ => {}
         }

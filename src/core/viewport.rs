@@ -2,6 +2,11 @@
 
 use glam::{Affine2, Mat3, Vec2};
 
+/// Smallest allowed zoom.
+pub const MIN_ZOOM: f32 = 0.05;
+/// Largest allowed zoom.
+pub const MAX_ZOOM: f32 = 64.0;
+
 /// Transform between canvas space and screen space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Viewport {
@@ -42,6 +47,14 @@ impl Viewport {
     /// Converts a canvas position to a screen position.
     pub fn canvas_to_screen(&self, p: Vec2) -> Vec2 {
         self.affine().transform_point2(p)
+    }
+
+    /// Multiplies the zoom by `factor` (clamped to `MIN_ZOOM..=MAX_ZOOM`),
+    /// keeping the canvas point under `screen_point` fixed.
+    pub fn zoom_at(&mut self, screen_point: Vec2, factor: f32) {
+        let canvas = self.screen_to_canvas(screen_point);
+        self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
+        self.offset += screen_point - self.canvas_to_screen(canvas);
     }
 }
 
@@ -98,5 +111,33 @@ mod tests {
         let v = Viewport { offset: Vec2::new(5.0, 6.0), zoom: 2.0, angle: 0.8, mirror: true };
         let p = Vec2::new(7.0, 9.0);
         assert!((v.matrix().transform_point2(p) - v.canvas_to_screen(p)).length() < 1e-4);
+    }
+
+    /// Asserts the canvas point under the cursor does not move when zooming.
+    fn check_fixed(mut v: Viewport, factor: f32) {
+        let cursor = Vec2::new(200.0, 150.0);
+        let before = v.screen_to_canvas(cursor);
+        v.zoom_at(cursor, factor);
+        let after = v.screen_to_canvas(cursor);
+        assert!((after - before).length() < 1e-2, "{before} vs {after}");
+    }
+
+    #[test]
+    fn zoom_at_keeps_point_fixed() {
+        check_fixed(Viewport::default(), 1.5);
+        let offset = Vec2::new(-30.0, 12.0);
+        for angle in [0.4, -2.0] {
+            check_fixed(Viewport { offset, zoom: 2.0, angle, mirror: true }, 0.7);
+            check_fixed(Viewport { offset, zoom: 2.0, angle, mirror: false }, 1.3);
+        }
+    }
+
+    #[test]
+    fn zoom_at_clamps() {
+        let mut v = Viewport::default();
+        v.zoom_at(Vec2::ZERO, 1000.0);
+        assert_eq!(v.zoom, MAX_ZOOM);
+        v.zoom_at(Vec2::ZERO, 1e-6);
+        assert_eq!(v.zoom, MIN_ZOOM);
     }
 }
