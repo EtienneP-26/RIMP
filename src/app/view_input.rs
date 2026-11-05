@@ -4,11 +4,15 @@ use glam::Vec2;
 
 use crate::core::viewport::Viewport;
 
+/// Zoom factor applied per wheel line.
+pub const ZOOM_STEP: f32 = 1.1;
+
 /// Tracks the pan triggers and the last cursor position.
 #[derive(Default)]
 pub struct ViewInput {
     space: bool,
     middle: bool,
+    ctrl: bool,
     last: Option<Vec2>,
 }
 
@@ -21,6 +25,27 @@ impl ViewInput {
     /// Records whether the middle mouse button is held.
     pub fn set_middle(&mut self, held: bool) {
         self.middle = held;
+    }
+
+    /// Records whether the Ctrl key is held.
+    pub fn set_ctrl(&mut self, held: bool) {
+        self.ctrl = held;
+    }
+
+    /// Zooms around the last cursor position when Ctrl is held.
+    ///
+    /// `lines` is the wheel movement in lines (positive zooms in).
+    ///
+    /// ## Returns
+    /// `true` if the view changed.
+    pub fn wheel(&mut self, lines: f32, viewport: &mut Viewport) -> bool {
+        match self.last {
+            Some(cursor) if self.ctrl && lines != 0.0 => {
+                viewport.zoom_at(cursor, ZOOM_STEP.powf(lines));
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Tells whether a pan trigger is active.
@@ -85,5 +110,24 @@ mod tests {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());
         assert!(!drag(&mut input, &mut view));
         assert_eq!(view.offset, Vec2::ZERO);
+    }
+
+    #[test]
+    fn ctrl_wheel_zooms_at_cursor() {
+        let (mut input, mut view) = (ViewInput::default(), Viewport::default());
+        input.cursor_moved(Vec2::new(50.0, 40.0), &mut view);
+        input.set_ctrl(true);
+        assert!(input.wheel(1.0, &mut view));
+        assert!((view.zoom - ZOOM_STEP).abs() < 1e-5);
+        let fixed = view.screen_to_canvas(Vec2::new(50.0, 40.0));
+        assert!((fixed - Vec2::new(50.0, 40.0)).length() < 1e-3);
+    }
+
+    #[test]
+    fn wheel_without_ctrl_does_nothing() {
+        let (mut input, mut view) = (ViewInput::default(), Viewport::default());
+        input.cursor_moved(Vec2::new(50.0, 40.0), &mut view);
+        assert!(!input.wheel(1.0, &mut view));
+        assert_eq!(view, Viewport::default());
     }
 }
