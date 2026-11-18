@@ -60,7 +60,10 @@ impl Raster {
     /// Drains the tiles written since the last call as clipped pixel rectangles.
     pub fn take_dirty(&mut self) -> Vec<(usize, usize, usize, usize)> {
         let dirty = std::mem::take(&mut self.dirty);
-        dirty.into_iter().map(|index| self.tile_rect(index)).collect()
+        dirty
+            .into_iter()
+            .map(|index| self.tile_rect(index))
+            .collect()
     }
 
     /// Reads the pixel at `(x, y)`, or `None` when outside the image.

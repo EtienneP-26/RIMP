@@ -1,3 +1,5 @@
+//! The application: window, event handling and drawing loop.
+
 mod canvas;
 mod debug;
 mod drawing;
@@ -15,10 +17,11 @@ use octotablet::Manager;
 use octotablet::builder::Builder;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::keyboard::{Key, NamedKey};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
+use crate::core::viewport::Viewport;
 use debug::DebugStats;
 use drawing::{Drawing, screen_to_image};
 use gpu::Gpu;
@@ -27,8 +30,6 @@ use view_input::ViewInput;
 
 /// Pixels of a touchpad scroll that count as one wheel line.
 const PIXELS_PER_LINE: f32 = 50.0;
-
-use crate::core::viewport::Viewport;
 
 /// Dark grey behind the canvas.
 const BACKGROUND: wgpu::Color = wgpu::Color {
@@ -47,7 +48,7 @@ const FULL_PRESSURE: f32 = 1.0;
 /// How often the pen events are read when nothing else wakes the loop.
 const PEN_POLL: Duration = Duration::from_millis(10);
 
-/// # The application state: the window, the GPU and the drawing.
+/// The application state: window, GPU and drawing.
 struct App {
     window: Option<Arc<Window>>,
     gpu: Option<Gpu>,
@@ -62,6 +63,7 @@ struct App {
 }
 
 impl App {
+    /// Creates the application with an empty drawing.
     fn new() -> Self {
         Self {
             window: None,
@@ -77,7 +79,7 @@ impl App {
         }
     }
 
-    /// # Converts a position in the window (physical pixels) into the view's screen space.
+    /// Converts a position in the window (physical pixels) into the view's screen space.
     fn to_view_space(&self, position: (f32, f32)) -> (f32, f32) {
         let screen = self.window.as_ref().map_or((1.0, 1.0), |window| {
             let size = window.inner_size();
@@ -88,22 +90,24 @@ impl App {
         screen_to_image(position, screen, image)
     }
 
-    /// # Converts a position in the window (physical pixels) into a position on the image.
+    /// Converts a position in the window (physical pixels) into a position on the image.
     fn to_image(&self, position: (f32, f32)) -> (f32, f32) {
         pen::to_canvas(self.to_view_space(position), &self.viewport)
     }
 
-    /// # Pans the view if a trigger is held; returns `true` if the cursor move was a pan.
+    /// Pans the view if a trigger is held; returns `true` if the cursor move was a pan.
     fn pan_to(&mut self, position: (f32, f32)) -> bool {
         let view_position = self.to_view_space(position).into();
-        let moved = self.view_input.cursor_moved(view_position, &mut self.viewport);
+        let moved = self
+            .view_input
+            .cursor_moved(view_position, &mut self.viewport);
         if moved {
             self.request_redraw();
         }
         self.view_input.is_panning()
     }
 
-    /// # Updates the pan triggers (Space key, middle button).
+    /// Updates the pan triggers (Space key, middle button).
     fn track_pan_trigger(&mut self, event: &WindowEvent) {
         match event {
             WindowEvent::KeyboardInput { event, .. }
@@ -123,7 +127,7 @@ impl App {
         }
     }
 
-    /// # Zooms the view on Ctrl + wheel (line or pixel deltas).
+    /// Zooms the view on Ctrl + wheel (line or pixel deltas).
     fn wheel_zoom(&mut self, delta: MouseScrollDelta) {
         let lines = match delta {
             MouseScrollDelta::LineDelta(_, y) => y,
@@ -134,10 +138,7 @@ impl App {
         }
     }
 
-    /// # Paints at a point of the image and asks for a new frame.
-    ///
-    /// The image is only sent to the GPU when the frame is drawn, so many events
-    /// between two frames cost a single upload.
+    /// Paints at an image point and asks for a new frame.
     fn paint(&mut self, point: (f32, f32), pressure: f32) {
         self.drawing.paint(point, pressure);
         self.stats.record_event(pressure);
@@ -145,24 +146,20 @@ impl App {
         self.request_redraw();
     }
 
-    /// # Ends the stroke in progress.
+    /// Ends the stroke in progress.
     fn release(&mut self) {
         self.pressed = false;
         self.drawing.lift();
     }
 
+    /// Asks the window for a new frame.
     fn request_redraw(&self) {
         if let Some(window) = &self.window {
             window.request_redraw();
         }
     }
 
-    /// # Lets the interface see an event first.
-    ///
-    /// ## Returns
-    /// `true` if the event was meant for the interface (a click on an egui window, for
-    /// example) and must not draw on the canvas. A button release always goes through, so
-    /// that a stroke started on the canvas can never get stuck.
+    /// Lets the interface see an event first; true if it consumed it.
     fn interface_takes(&mut self, event: &WindowEvent) -> bool {
         let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) else {
             return false;
@@ -183,13 +180,16 @@ impl App {
         response.consumed && !is_release
     }
 
-    /// # Applies one pen event to the drawing.
+    /// Applies one pen event to the drawing.
     fn handle_pen(&mut self, event: PenEvent) {
         match event {
             PenEvent::Down => self.pressed = true,
             PenEvent::Up => self.release(),
             PenEvent::Move { position, pressure } if self.pressed => {
-                let scale = self.window.as_ref().map_or(1.0, |w| w.scale_factor() as f32);
+                let scale = self
+                    .window
+                    .as_ref()
+                    .map_or(1.0, |w| w.scale_factor() as f32);
                 let point = self.to_image(pen::to_physical(position, scale));
                 self.paint(point, pressure);
             }
@@ -197,7 +197,38 @@ impl App {
         }
     }
 
-    /// # Sends the drawing to the GPU if it changed, then draws one frame.
+    /// Resizes the GPU surface and redraws.
+    fn on_resized(&mut self, width: u32, height: u32) {
+        if let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) {
+            gpu.resize(width, height);
+            window.request_redraw();
+        }
+    }
+
+    /// Pans, or tracks the cursor and paints while the button is down.
+    fn on_cursor_moved(&mut self, position: (f32, f32)) {
+        if self.pan_to(position) {
+            return;
+        }
+        self.cursor = self.to_image(position);
+        if self.pressed {
+            self.paint(self.cursor, FULL_PRESSURE);
+        }
+    }
+
+    /// Starts or ends a stroke on a left button change.
+    fn on_left_button(&mut self, state: ElementState) {
+        match state {
+            ElementState::Pressed if self.view_input.is_panning() => {}
+            ElementState::Pressed => {
+                self.pressed = true;
+                self.paint(self.cursor, FULL_PRESSURE);
+            }
+            ElementState::Released => self.release(),
+        }
+    }
+
+    /// Sends the drawing to the GPU if it changed, then draws one frame.
     fn redraw(&mut self) {
         let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) else {
             return;
@@ -244,34 +275,15 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::Resized(size) => {
-                if let (Some(gpu), Some(window)) = (&mut self.gpu, &self.window) {
-                    gpu.resize(size.width, size.height);
-                    window.request_redraw();
-                }
-            }
+            WindowEvent::Resized(size) => self.on_resized(size.width, size.height),
             WindowEvent::CursorMoved { position, .. } => {
-                let position = (position.x as f32, position.y as f32);
-                if self.pan_to(position) {
-                    return;
-                }
-                self.cursor = self.to_image(position);
-                if self.pressed {
-                    self.paint(self.cursor, FULL_PRESSURE);
-                }
+                self.on_cursor_moved((position.x as f32, position.y as f32));
             }
             WindowEvent::MouseInput {
                 state,
                 button: MouseButton::Left,
                 ..
-            } => match state {
-                ElementState::Pressed if self.view_input.is_panning() => {}
-                ElementState::Pressed => {
-                    self.pressed = true;
-                    self.paint(self.cursor, FULL_PRESSURE);
-                }
-                ElementState::Released => self.release(),
-            },
+            } => self.on_left_button(state),
             WindowEvent::MouseWheel { delta, .. } => self.wheel_zoom(delta),
             WindowEvent::RedrawRequested => self.redraw(),
             _ => {}
@@ -290,9 +302,16 @@ impl ApplicationHandler for App {
     }
 }
 
-/// # Connects to the graphics tablet of the window.
-///
-/// Without a tablet the program still works with the mouse, so a failure is only reported.
+/// Opens the RIMP window and runs until it is closed.
+pub fn run() -> Result<(), Box<dyn Error>> {
+    let event_loop = EventLoop::new()?;
+    event_loop.set_control_flow(ControlFlow::Wait);
+
+    event_loop.run_app(&mut App::new())?;
+    Ok(())
+}
+
+/// Connects to the graphics tablet, reporting failure without stopping.
 fn connect_tablet(window: &Arc<Window>) -> Option<Manager> {
     match Builder::default().build_shared(window) {
         Ok(manager) => Some(manager),
@@ -303,7 +322,7 @@ fn connect_tablet(window: &Arc<Window>) -> Option<Manager> {
     }
 }
 
-/// # Creates the window and connects the GPU to it.
+/// Creates the window and connects the GPU to it.
 fn create_window_and_gpu(
     event_loop: &ActiveEventLoop,
     drawing: &Drawing,
@@ -319,16 +338,4 @@ fn create_window_and_gpu(
     )?;
 
     Ok((window, gpu))
-}
-
-/// # Opens the RIMP window and runs until it is closed.
-///
-/// ## Errors
-/// If the event loop cannot be created or fails while running.
-pub fn run() -> Result<(), Box<dyn Error>> {
-    let event_loop = EventLoop::new()?;
-    event_loop.set_control_flow(ControlFlow::Wait);
-
-    event_loop.run_app(&mut App::new())?;
-    Ok(())
 }
