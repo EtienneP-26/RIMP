@@ -183,7 +183,7 @@ impl App {
         };
 
         let response = gpu.on_window_event(window, event);
-        if response.repaint {
+        if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
             window.request_redraw();
         }
 
