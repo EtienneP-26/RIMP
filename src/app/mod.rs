@@ -13,10 +13,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use egui_wgpu::wgpu;
+use glam::Vec2;
 use octotablet::Manager;
 use octotablet::builder::Builder;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{ElementState, KeyEvent, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
@@ -95,19 +96,21 @@ impl App {
         pen::to_canvas(self.to_view_space(position), &self.viewport)
     }
 
-    /// Pans the view if a trigger is held; returns `true` if the cursor move was a pan.
+    /// Pans or rotates the view if a trigger is held; returns `true` if the move navigated.
     fn pan_to(&mut self, position: (f32, f32)) -> bool {
         let view_position = self.to_view_space(position).into();
+        let center = Vec2::new(IMAGE_SIZE.0 as f32, IMAGE_SIZE.1 as f32) / 2.0;
+        self.view_input.set_center(center);
         let moved = self
             .view_input
             .cursor_moved(view_position, &mut self.viewport);
         if moved {
             self.request_redraw();
         }
-        self.view_input.is_panning()
+        self.view_input.is_navigating()
     }
 
-    /// Updates the pan triggers (Space key, middle button).
+    /// Updates the view triggers (Space, R, M keys, middle button, Ctrl).
     fn track_pan_trigger(&mut self, event: &WindowEvent) {
         match event {
             WindowEvent::KeyboardInput { event, .. }
@@ -115,6 +118,7 @@ impl App {
             {
                 self.view_input.set_space(event.state.is_pressed());
             }
+            WindowEvent::KeyboardInput { event, .. } => self.track_letter_key(event),
             WindowEvent::MouseInput {
                 state,
                 button: MouseButton::Middle,
@@ -122,6 +126,19 @@ impl App {
             } => self.view_input.set_middle(state.is_pressed()),
             WindowEvent::ModifiersChanged(mods) => {
                 self.view_input.set_ctrl(mods.state().control_key());
+            }
+            _ => {}
+        }
+    }
+
+    /// Handles R (hold to rotate) and M (press to mirror).
+    fn track_letter_key(&mut self, event: &KeyEvent) {
+        let letter = event.logical_key.to_text().map(str::to_lowercase);
+        match letter.as_deref() {
+            Some("r") => self.view_input.set_rotate(event.state.is_pressed()),
+            Some("m") if event.state.is_pressed() && !event.repeat => {
+                self.view_input.toggle_mirror(&mut self.viewport);
+                self.request_redraw();
             }
             _ => {}
         }
@@ -186,15 +203,24 @@ impl App {
             PenEvent::Down => self.pressed = true,
             PenEvent::Up => self.release(),
             PenEvent::Move { position, pressure } if self.pressed => {
-                let scale = self
-                    .window
-                    .as_ref()
-                    .map_or(1.0, |w| w.scale_factor() as f32);
-                let point = self.to_image(pen::to_physical(position, scale));
-                self.paint(point, pressure);
+                self.pen_move(position, pressure);
             }
             PenEvent::Move { .. } => {}
         }
+    }
+
+    /// Rotates or pans the view with the pen, or paints a point.
+    fn pen_move(&mut self, position: (f32, f32), pressure: f32) {
+        let scale = self
+            .window
+            .as_ref()
+            .map_or(1.0, |w| w.scale_factor() as f32);
+        let physical = pen::to_physical(position, scale);
+        if self.pan_to(physical) {
+            return;
+        }
+        let point = self.to_image(physical);
+        self.paint(point, pressure);
     }
 
     /// Resizes the GPU surface and redraws.
@@ -219,7 +245,7 @@ impl App {
     /// Starts or ends a stroke on a left button change.
     fn on_left_button(&mut self, state: ElementState) {
         match state {
-            ElementState::Pressed if self.view_input.is_panning() => {}
+            ElementState::Pressed if self.view_input.is_navigating() => {}
             ElementState::Pressed => {
                 self.pressed = true;
                 self.paint(self.cursor, FULL_PRESSURE);
