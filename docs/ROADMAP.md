@@ -18,6 +18,46 @@ Règles :
 - Chaque version est un tag git `vX.Y.Z`. Avant la stable, des candidates `v1.0.0-rc.N` peuvent être publiées.
 - Linux uniquement.
 
+## Planning estimé
+
+Estimations en jours de travail, avec 2 jours de travail par semaine. Ce sont des ordres de grandeur, à corriger au fil des versions. Le cumul part de la v0.5.5 (fin novembre 2026).
+
+| Version | Thème | Durée | Semaines | Cumul (semaines) |
+|---|---|---|---|---|
+| v0.1 | Mise en place | 0,5 j | fait | — |
+| v0.2 | Fondations du moteur | 1,5 j | fait | — |
+| v0.3 | Fenêtre et GPU | 1 j | fait | — |
+| v0.4 | Tablette et premier trait | 2 j | fait | — |
+| v0.5 | Canevas et vue | 4 j (reste 1 j) | 0,5 | 0,5 |
+| v0.6 | Moteur de trait | 4 j | 2 | 2,5 |
+| v0.7 | Trait en cours et rejeu | 4 j | 2 | 4,5 |
+| v0.8 | Calques | 3 j | 1,5 | 6 |
+| v0.9 | Annuler et refaire | 3 j | 1,5 | 7,5 |
+| v0.10 | Fichiers et images | 3 j | 1,5 | 9 |
+| v0.11 | Interface | 4 j | 2 | 11 |
+| v0.12 | Couleur et réglages | 5 j | 2,5 | 13,5 |
+| v0.13 | Sélection et outils essentiels | 7 j | 3,5 | 17 |
+| v0.14 | Calibration de la tablette | 3 j | 1,5 | 18,5 |
+| v0.15 | Publication | 2 j | 1 | 19,5 |
+| v1.0 | Première version stable | 2 j | 1 | 20,5 |
+| v1.1 | Images d'animation | 4 j | 2 | 22,5 |
+| v1.2 | Lecture | 2 j | 1 | 23,5 |
+| v1.3 | Papier calque | 2 j | 1 | 24,5 |
+| v1.4 | Export de l'animation | 3 j | 1,5 | 26 |
+| v1.5 | Durée et gestion des images | 3 j | 1,5 | 27,5 |
+| v1.6 | Recadrage et redimensionnement | 3 j | 1,5 | 29 |
+| v1.7 | Réglages de couleur | 3 j | 1,5 | 30,5 |
+| v1.8 | Flou et netteté | 2 j | 1 | 31,5 |
+| v1.9 | Couleur portée | 3 j | 1,5 | 33 |
+| v1.10 | Mélange spectral | 3 j | 1,5 | 34,5 |
+| v1.11 | Grain et pointes | 3 j | 1,5 | 36 |
+| v1.12 | Variations et préréglages | 2 j | 1 | 37 |
+| v1.13 | Calcul en parallèle | 3 j | 1,5 | 38,5 |
+| v1.14 | Pinceaux sur GPU | 5 j | 2,5 | 41 |
+| v1.15 | Flatpak | 2 j | 1 | 42 |
+
+Repères : v1.0.0 vers mi-avril 2027 (environ 41 jours de travail), fin de la roadmap vers septembre 2027 (environ 84 jours de travail).
+
 ## Avant la v1.0.0
 
 ### Mise en place
