@@ -24,11 +24,11 @@ Estimations en jours de travail, avec 2 jours de travail par semaine. Ce sont de
 
 | Version | Thème | Durée | Semaines | Cumul (semaines) |
 |---|---|---|---|---|
-| v0.1 | Mise en place | 0,5 j | fait | — |
-| v0.2 | Fondations du moteur | 1,5 j | fait | — |
-| v0.3 | Fenêtre et GPU | 1 j | fait | — |
-| v0.4 | Tablette et premier trait | 2 j | fait | — |
-| v0.5 | Canevas et vue | 4 j (reste 1 j) | 0,5 | 0,5 |
+| v0.1 | Mise en place | - | fait | - |
+| v0.2 | Fondations du moteur | - | fait | - |
+| v0.3 | Fenêtre et GPU | - | fait | - |
+| v0.4 | Tablette et premier trait | - | fait | - |
+| v0.5 | Canevas et vue | 4 j | 0,5 | 0,5 |
 | v0.6 | Moteur de trait | 4 j | 2 | 2,5 |
 | v0.7 | Trait en cours et rejeu | 4 j | 2 | 4,5 |
 | v0.8 | Calques | 3 j | 1,5 | 6 |
