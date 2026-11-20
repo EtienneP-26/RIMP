@@ -1,4 +1,4 @@
-//! Input state machine that pans and zooms the view.
+//! Input state machine that pans, zooms, rotates and mirrors the view.
 
 use glam::Vec2;
 
@@ -13,6 +13,8 @@ pub struct ViewInput {
     space: bool,
     middle: bool,
     ctrl: bool,
+    rotate: bool,
+    center: Vec2,
     last: Option<Vec2>,
 }
 
@@ -32,6 +34,21 @@ impl ViewInput {
         self.ctrl = held;
     }
 
+    /// Records whether the R key is held.
+    pub fn set_rotate(&mut self, held: bool) {
+        self.rotate = held;
+    }
+
+    /// Sets the screen point the view rotates and mirrors around.
+    pub fn set_center(&mut self, center: Vec2) {
+        self.center = center;
+    }
+
+    /// Flips the view horizontally around the center.
+    pub fn toggle_mirror(&self, viewport: &mut Viewport) {
+        viewport.toggle_mirror_at(self.center);
+    }
+
     /// Zooms around the last cursor position when Ctrl is held.
     pub fn wheel(&mut self, lines: f32, viewport: &mut Viewport) -> bool {
         match self.last {
@@ -48,12 +65,27 @@ impl ViewInput {
         self.space || self.middle
     }
 
-    /// Feeds a cursor position and pans the view if a trigger is active.
+    /// Tells whether a pan or rotate trigger is active.
+    pub fn is_navigating(&self) -> bool {
+        self.is_panning() || self.rotate
+    }
+
+    /// Angle swept around the center when the cursor goes from `from` to `to`.
+    fn swept_angle(&self, from: Vec2, to: Vec2) -> f32 {
+        let (a, b) = (from - self.center, to - self.center);
+        a.perp_dot(b).atan2(a.dot(b))
+    }
+
+    /// Feeds a cursor position and pans or rotates the view if a trigger is active.
     pub fn cursor_moved(&mut self, position: Vec2, viewport: &mut Viewport) -> bool {
         let previous = self.last.replace(position);
         match previous {
             Some(last) if self.is_panning() => {
                 viewport.offset += position - last;
+                true
+            }
+            Some(last) if self.rotate => {
+                viewport.rotate_about(self.center, self.swept_angle(last, position));
                 true
             }
             _ => false,
@@ -127,5 +159,40 @@ mod tests {
         input.cursor_moved(Vec2::new(50.0, 40.0), &mut view);
         assert!(!input.wheel(1.0, &mut view));
         assert_eq!(view, Viewport::default());
+    }
+
+    /// R plus drag rotates by the angle swept around the center.
+    #[test]
+    fn rotate_drag_turns_view() {
+        let (mut input, mut view) = (ViewInput::default(), Viewport::default());
+        input.set_rotate(true);
+        assert!(input.is_navigating());
+        input.cursor_moved(Vec2::new(10.0, 0.0), &mut view);
+        assert!(input.cursor_moved(Vec2::new(0.0, 10.0), &mut view));
+        assert!((view.angle - std::f32::consts::FRAC_PI_2).abs() < 1e-5);
+    }
+
+    /// Releasing R stops the rotation.
+    #[test]
+    fn release_stops_rotation() {
+        let (mut input, mut view) = (ViewInput::default(), Viewport::default());
+        input.set_rotate(true);
+        input.set_rotate(false);
+        input.cursor_moved(Vec2::new(10.0, 0.0), &mut view);
+        assert!(!input.cursor_moved(Vec2::new(0.0, 10.0), &mut view));
+        assert!(!input.is_navigating());
+        assert_eq!(view.angle, 0.0);
+    }
+
+    /// Mirroring keeps the center point fixed.
+    #[test]
+    fn mirror_keeps_center_fixed() {
+        let (mut input, mut view) = (ViewInput::default(), Viewport::default());
+        let center = Vec2::new(60.0, 40.0);
+        input.set_center(center);
+        let before = view.screen_to_canvas(center);
+        input.toggle_mirror(&mut view);
+        assert!(view.mirror);
+        assert!((view.screen_to_canvas(center) - before).length() < 1e-4);
     }
 }

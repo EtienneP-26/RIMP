@@ -60,6 +60,19 @@ impl Viewport {
         self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
         self.offset += screen_point - self.canvas_to_screen(canvas);
     }
+
+    /// Rotates the view by `delta` radians around a screen point.
+    pub fn rotate_about(&mut self, center: Vec2, delta: f32) {
+        self.offset = center + Vec2::from_angle(delta).rotate(self.offset - center);
+        self.angle += delta;
+    }
+
+    /// Toggles the horizontal mirror keeping the canvas point under `center` fixed.
+    pub fn toggle_mirror_at(&mut self, center: Vec2) {
+        let canvas = self.screen_to_canvas(center);
+        self.mirror = !self.mirror;
+        self.offset += center - self.canvas_to_screen(canvas);
+    }
 }
 
 #[cfg(test)]
@@ -190,5 +203,37 @@ mod tests {
         assert_eq!(v.zoom, MAX_ZOOM);
         v.zoom_at(Vec2::ZERO, 1e-6);
         assert_eq!(v.zoom, MIN_ZOOM);
+    }
+
+    /// Checks rotating about a point keeps that point's canvas position.
+    #[test]
+    fn rotate_about_keeps_center_fixed() {
+        let mut v = Viewport {
+            offset: Vec2::new(7.0, -3.0),
+            zoom: 2.0,
+            angle: 0.2,
+            mirror: true,
+        };
+        let center = Vec2::new(100.0, 80.0);
+        let before = v.screen_to_canvas(center);
+        v.rotate_about(center, 0.9);
+        assert!((v.screen_to_canvas(center) - before).length() < 1e-3);
+        assert!((v.angle - 1.1).abs() < 1e-6);
+    }
+
+    /// Checks toggling the mirror keeps the center point fixed.
+    #[test]
+    fn toggle_mirror_keeps_center_fixed() {
+        let mut v = Viewport {
+            offset: Vec2::new(7.0, -3.0),
+            zoom: 2.0,
+            angle: 0.5,
+            mirror: false,
+        };
+        let center = Vec2::new(100.0, 80.0);
+        let before = v.screen_to_canvas(center);
+        v.toggle_mirror_at(center);
+        assert!(v.mirror);
+        assert!((v.screen_to_canvas(center) - before).length() < 1e-3);
     }
 }
