@@ -23,7 +23,12 @@ pub struct Viewport {
 impl Default for Viewport {
     /// Identity view.
     fn default() -> Self {
-        Self { offset: Vec2::ZERO, zoom: 1.0, angle: 0.0, mirror: false }
+        Self {
+            offset: Vec2::ZERO,
+            zoom: 1.0,
+            angle: 0.0,
+            mirror: false,
+        }
     }
 }
 
@@ -49,8 +54,7 @@ impl Viewport {
         self.affine().transform_point2(p)
     }
 
-    /// Multiplies the zoom by `factor` (clamped to `MIN_ZOOM..=MAX_ZOOM`),
-    /// keeping the canvas point under `screen_point` fixed.
+    /// Zooms by `factor` (clamped) keeping the point under `screen_point` fixed.
     pub fn zoom_at(&mut self, screen_point: Vec2, factor: f32) {
         let canvas = self.screen_to_canvas(screen_point);
         self.zoom = (self.zoom * factor).clamp(MIN_ZOOM, MAX_ZOOM);
@@ -69,6 +73,7 @@ mod tests {
         assert!((back - p).length() < 1e-3, "{v:?} -> {back}");
     }
 
+    /// Checks the default view is the identity.
     #[test]
     fn identity_round_trip() {
         let v = Viewport::default();
@@ -76,39 +81,67 @@ mod tests {
         check(v);
     }
 
+    /// Checks zoomed views round trip.
     #[test]
     fn zoom_round_trip() {
         for zoom in [0.05, 0.5, 2.0, 32.0] {
-            check(Viewport { zoom, offset: Vec2::new(10.0, 20.0), ..Default::default() });
+            check(Viewport {
+                zoom,
+                offset: Vec2::new(10.0, 20.0),
+                ..Default::default()
+            });
         }
     }
 
+    /// Checks a quarter turn maps x to y and round trips.
     #[test]
     fn rotation_round_trip() {
-        let v = Viewport { angle: std::f32::consts::FRAC_PI_2, ..Default::default() };
+        let v = Viewport {
+            angle: std::f32::consts::FRAC_PI_2,
+            ..Default::default()
+        };
         let s = v.canvas_to_screen(Vec2::new(1.0, 0.0));
         assert!((s - Vec2::new(0.0, 1.0)).length() < 1e-5);
         check(v);
     }
 
+    /// Checks the mirror flips x and round trips.
     #[test]
     fn mirror_round_trip() {
-        let v = Viewport { mirror: true, ..Default::default() };
-        assert_eq!(v.canvas_to_screen(Vec2::new(1.0, 2.0)), Vec2::new(-1.0, 2.0));
+        let v = Viewport {
+            mirror: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            v.canvas_to_screen(Vec2::new(1.0, 2.0)),
+            Vec2::new(-1.0, 2.0)
+        );
         check(v);
     }
 
+    /// Checks combined transforms round trip.
     #[test]
     fn combined_round_trip() {
         for angle in [0.3, 1.7, -2.5] {
             let offset = Vec2::new(-80.0, 40.0);
-            check(Viewport { offset, zoom: 3.0, angle, mirror: true });
+            check(Viewport {
+                offset,
+                zoom: 3.0,
+                angle,
+                mirror: true,
+            });
         }
     }
 
+    /// Checks the matrix agrees with the point conversion.
     #[test]
     fn matrix_matches_conversion() {
-        let v = Viewport { offset: Vec2::new(5.0, 6.0), zoom: 2.0, angle: 0.8, mirror: true };
+        let v = Viewport {
+            offset: Vec2::new(5.0, 6.0),
+            zoom: 2.0,
+            angle: 0.8,
+            mirror: true,
+        };
         let p = Vec2::new(7.0, 9.0);
         assert!((v.matrix().transform_point2(p) - v.canvas_to_screen(p)).length() < 1e-4);
     }
@@ -122,16 +155,34 @@ mod tests {
         assert!((after - before).length() < 1e-2, "{before} vs {after}");
     }
 
+    /// Checks zooming keeps the cursor point fixed.
     #[test]
     fn zoom_at_keeps_point_fixed() {
         check_fixed(Viewport::default(), 1.5);
         let offset = Vec2::new(-30.0, 12.0);
         for angle in [0.4, -2.0] {
-            check_fixed(Viewport { offset, zoom: 2.0, angle, mirror: true }, 0.7);
-            check_fixed(Viewport { offset, zoom: 2.0, angle, mirror: false }, 1.3);
+            check_fixed(
+                Viewport {
+                    offset,
+                    zoom: 2.0,
+                    angle,
+                    mirror: true,
+                },
+                0.7,
+            );
+            check_fixed(
+                Viewport {
+                    offset,
+                    zoom: 2.0,
+                    angle,
+                    mirror: false,
+                },
+                1.3,
+            );
         }
     }
 
+    /// Checks zoom stays within its limits.
     #[test]
     fn zoom_at_clamps() {
         let mut v = Viewport::default();

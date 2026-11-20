@@ -1,3 +1,5 @@
+//! Core image data types: pixels, tiles, rasters, blending and viewport.
+
 pub mod blend;
 pub mod pixel;
 pub mod raster;

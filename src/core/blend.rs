@@ -1,5 +1,8 @@
+//! Blend modes combining two premultiplied pixels.
+
 use super::pixel::{Pixel, blend_normal};
 
+/// How an upper pixel is combined with a lower one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BlendMode {
     #[default]
@@ -8,24 +11,7 @@ pub enum BlendMode {
     Add,
 }
 
-/// # Blends two premultiplied pixels with the given mode.
-///
-/// ## Arguments
-/// * `mode` - The blend mode
-/// * `src` - Upper pixel
-/// * `dst` - Lower pixel
-///
-/// ## Returns
-/// The blended pixel.
-///
-/// ## Examples
-/// ```
-/// use rimp::core::{BlendMode, Pixel, blend};
-///
-/// let gray = Pixel { r: 0.5, g: 0.5, b: 0.5, a: 1.0 };
-/// let white = Pixel { r: 1.0, g: 1.0, b: 1.0, a: 1.0 };
-/// assert_eq!(blend(BlendMode::Multiply, gray, white), gray);
-/// ```
+/// Blends two premultiplied pixels with the given mode.
 pub fn blend(mode: BlendMode, src: Pixel, dst: Pixel) -> Pixel {
     match mode {
         BlendMode::Normal => blend_normal(src, dst),
@@ -34,10 +20,7 @@ pub fn blend(mode: BlendMode, src: Pixel, dst: Pixel) -> Pixel {
     }
 }
 
-/// # Multiply blend on premultiplied pixels.
-///
-/// Formula per colour channel: `src × (1 − dst.a) + dst × (1 − src.a) + src × dst`.
-/// Alpha is composed as in the normal mode.
+/// Multiply blend on premultiplied pixels, alpha composed as in normal mode.
 fn blend_multiply(src: Pixel, dst: Pixel) -> Pixel {
     let channel = |s: f32, d: f32| s * (1.0 - dst.a) + d * (1.0 - src.a) + s * d;
 
@@ -49,7 +32,7 @@ fn blend_multiply(src: Pixel, dst: Pixel) -> Pixel {
     }
 }
 
-/// # Additive blend on premultiplied pixels, each channel capped at 1.0.
+/// Additive blend on premultiplied pixels, each channel capped at 1.0.
 fn blend_add(src: Pixel, dst: Pixel) -> Pixel {
     let channel = |s: f32, d: f32| (s + d).min(1.0);
 
@@ -65,38 +48,44 @@ fn blend_add(src: Pixel, dst: Pixel) -> Pixel {
 mod tests {
     use super::*;
 
+    /// Builds a pixel from its four channels.
     fn px(r: f32, g: f32, b: f32, a: f32) -> Pixel {
         Pixel { r, g, b, a }
     }
 
+    /// The default blend mode is Normal.
     #[test]
-    fn mode_par_defaut_est_normal() {
+    fn default_mode_is_normal() {
         assert_eq!(BlendMode::default(), BlendMode::Normal);
     }
 
+    /// Normal mode gives the same result as `blend_normal`.
     #[test]
-    fn normal_donne_le_meme_resultat_que_blend_normal() {
+    fn normal_matches_blend_normal() {
         let src = px(0.5, 0.0, 0.0, 0.5);
         let dst = px(0.0, 0.0, 1.0, 1.0);
         assert_eq!(blend(BlendMode::Normal, src, dst), blend_normal(src, dst));
     }
 
+    /// Multiplying with white changes nothing.
     #[test]
-    fn produit_avec_blanc_ne_change_rien() {
+    fn multiply_with_white_is_identity() {
         let src = px(0.2, 0.4, 0.6, 1.0);
-        let blanc = px(1.0, 1.0, 1.0, 1.0);
-        assert_eq!(blend(BlendMode::Multiply, src, blanc), src);
+        let white = px(1.0, 1.0, 1.0, 1.0);
+        assert_eq!(blend(BlendMode::Multiply, src, white), src);
     }
 
+    /// Multiplying with black gives black.
     #[test]
-    fn produit_avec_noir_donne_du_noir() {
+    fn multiply_with_black_is_black() {
         let src = px(0.2, 0.4, 0.6, 1.0);
-        let noir = px(0.0, 0.0, 0.0, 1.0);
-        assert_eq!(blend(BlendMode::Multiply, src, noir), noir);
+        let black = px(0.0, 0.0, 0.0, 1.0);
+        assert_eq!(blend(BlendMode::Multiply, src, black), black);
     }
 
+    /// Multiply multiplies the colour channels.
     #[test]
-    fn produit_multiplie_les_couleurs() {
+    fn multiply_multiplies_colors() {
         let src = px(0.5, 0.5, 0.5, 1.0);
         let dst = px(0.5, 1.0, 0.0, 1.0);
         assert_eq!(
@@ -105,28 +94,32 @@ mod tests {
         );
     }
 
+    /// A transparent source leaves the destination unchanged.
     #[test]
-    fn produit_source_transparente_laisse_la_destination() {
+    fn multiply_transparent_source_keeps_destination() {
         let dst = px(0.2, 0.4, 0.6, 1.0);
         assert_eq!(blend(BlendMode::Multiply, Pixel::default(), dst), dst);
     }
 
+    /// Add sums the channels.
     #[test]
-    fn addition_additionne_les_couleurs() {
+    fn add_sums_colors() {
         let src = px(0.25, 0.0, 0.5, 0.25);
         let dst = px(0.25, 0.5, 0.0, 0.5);
         assert_eq!(blend(BlendMode::Add, src, dst), px(0.5, 0.5, 0.5, 0.75));
     }
 
+    /// Add caps every channel at 1.0.
     #[test]
-    fn addition_est_plafonnee_a_un() {
+    fn add_is_capped_at_one() {
         let src = px(0.75, 0.75, 0.75, 1.0);
         let dst = px(0.75, 0.0, 0.5, 1.0);
         assert_eq!(blend(BlendMode::Add, src, dst), px(1.0, 0.75, 1.0, 1.0));
     }
 
+    /// Adding a transparent source changes nothing.
     #[test]
-    fn addition_avec_transparent_ne_change_rien() {
+    fn add_transparent_keeps_destination() {
         let dst = px(0.2, 0.4, 0.6, 1.0);
         assert_eq!(blend(BlendMode::Add, Pixel::default(), dst), dst);
     }

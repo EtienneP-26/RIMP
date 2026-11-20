@@ -1,4 +1,4 @@
-//! Input state machine that pans the view (Space + drag or middle-button drag).
+//! Input state machine that pans and zooms the view.
 
 use glam::Vec2;
 
@@ -33,11 +33,6 @@ impl ViewInput {
     }
 
     /// Zooms around the last cursor position when Ctrl is held.
-    ///
-    /// `lines` is the wheel movement in lines (positive zooms in).
-    ///
-    /// ## Returns
-    /// `true` if the view changed.
     pub fn wheel(&mut self, lines: f32, viewport: &mut Viewport) -> bool {
         match self.last {
             Some(cursor) if self.ctrl && lines != 0.0 => {
@@ -53,10 +48,7 @@ impl ViewInput {
         self.space || self.middle
     }
 
-    /// Feeds a cursor position; moves the view offset if panning.
-    ///
-    /// ## Returns
-    /// `true` if the view moved.
+    /// Feeds a cursor position and pans the view if a trigger is active.
     pub fn cursor_moved(&mut self, position: Vec2, viewport: &mut Viewport) -> bool {
         let previous = self.last.replace(position);
         match previous {
@@ -79,6 +71,7 @@ mod tests {
         input.cursor_moved(Vec2::new(15.0, 7.0), view)
     }
 
+    /// Space plus drag moves the offset.
     #[test]
     fn space_drag_moves_offset() {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());
@@ -87,6 +80,7 @@ mod tests {
         assert_eq!(view.offset, Vec2::new(5.0, -3.0));
     }
 
+    /// Releasing Space stops the pan.
     #[test]
     fn release_stops_pan() {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());
@@ -97,6 +91,7 @@ mod tests {
         assert_eq!(view.offset, Vec2::new(5.0, -3.0));
     }
 
+    /// Middle button drag pans.
     #[test]
     fn middle_button_pans() {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());
@@ -105,6 +100,7 @@ mod tests {
         assert_eq!(view.offset, Vec2::new(5.0, -3.0));
     }
 
+    /// No pan happens without a trigger.
     #[test]
     fn no_pan_without_trigger() {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());
@@ -112,6 +108,7 @@ mod tests {
         assert_eq!(view.offset, Vec2::ZERO);
     }
 
+    /// Ctrl plus wheel zooms around the cursor.
     #[test]
     fn ctrl_wheel_zooms_at_cursor() {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());
@@ -123,6 +120,7 @@ mod tests {
         assert!((fixed - Vec2::new(50.0, 40.0)).length() < 1e-3);
     }
 
+    /// Wheel without Ctrl leaves the view alone.
     #[test]
     fn wheel_without_ctrl_does_nothing() {
         let (mut input, mut view) = (ViewInput::default(), Viewport::default());

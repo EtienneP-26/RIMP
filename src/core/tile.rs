@@ -1,95 +1,39 @@
+//! Fixed size square tile of pixels.
+
 use super::pixel::Pixel;
 
 pub const TILE_SIZE: usize = 64;
 
-/// # A `TILE_SIZE` × `TILE_SIZE` square/vector of pixels.
+/// A `TILE_SIZE` by `TILE_SIZE` square of pixels.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Tile {
     pixels: Vec<Pixel>,
 }
 
 impl Tile {
-    /// # Creates a fully transparent tile.
-    ///
-    /// ## Returns
-    /// A tile whose pixels are all `Pixel::default()`.
-    ///
-    /// ## Examples
-    /// ```
-    /// use rimp::core::{Pixel, Tile};
-    ///
-    /// assert_eq!(Tile::new().get(0, 0), Pixel::default());
-    /// ```
+    /// Creates a fully transparent tile.
     pub fn new() -> Self {
-        Self {
-            pixels: vec![Pixel::default(); TILE_SIZE * TILE_SIZE],
-        }
+        Self::filled(Pixel::default())
     }
 
-    /// # Creates a tile with every pixel set to `pixel`.
+    /// Creates a tile with every pixel set to `pixel`.
     pub fn filled(pixel: Pixel) -> Self {
         Self {
             pixels: vec![pixel; TILE_SIZE * TILE_SIZE],
         }
     }
 
-    /// # Reads the pixel at position `(x, y)`.
-    ///
-    /// ## Arguments
-    /// * `x` - Column, from 0 to `TILE_SIZE - 1`
-    /// * `y` - Row, from 0 to `TILE_SIZE - 1`
-    ///
-    /// ## Returns
-    /// A copy of the pixel.
-    ///
-    /// ## Panics
-    /// If `(x, y)` is outside the tile.
-    ///
-    /// ## Examples
-    /// ```
-    /// use rimp::core::{Pixel, Tile};
-    ///
-    /// let tile = Tile::new();
-    /// assert_eq!(tile.get(63, 63), Pixel::default());
-    /// ```
+    /// Reads the pixel at `(x, y)`, panicking if outside the tile.
     pub fn get(&self, x: usize, y: usize) -> Pixel {
         self.pixels[Self::index(x, y)]
     }
 
-    /// # Writes the pixel at position `(x, y)`.
-    ///
-    /// ## Arguments
-    /// * `x` - Column, from 0 to `TILE_SIZE - 1`
-    /// * `y` - Row, from 0 to `TILE_SIZE - 1`
-    /// * `pixel` - The new value
-    ///
-    /// ## Panics
-    /// If `(x, y)` is outside the tile.
-    ///
-    /// ## Examples
-    /// ```
-    /// use rimp::core::{Pixel, Tile};
-    ///
-    /// let red = Pixel { r: 1.0, g: 0.0, b: 0.0, a: 1.0 };
-    /// let mut tile = Tile::new();
-    /// tile.set(10, 20, red);
-    /// assert_eq!(tile.get(10, 20), red);
-    /// ```
+    /// Writes the pixel at `(x, y)`, panicking if outside the tile.
     pub fn set(&mut self, x: usize, y: usize, pixel: Pixel) {
         self.pixels[Self::index(x, y)] = pixel;
     }
 
-    /// # Converts `(x, y)` into an index in the `pixels` array.
-    ///
-    /// ## Arguments
-    /// * `x` - Column
-    /// * `y` - Row
-    ///
-    /// ## Returns
-    /// The index of the pixel in `pixels`.
-    ///
-    /// ## Panics
-    /// If `(x, y)` is outside the tile.
+    /// Converts `(x, y)` into an index in `pixels`, panicking if outside the tile.
     fn index(x: usize, y: usize) -> usize {
         assert!(
             x < TILE_SIZE && y < TILE_SIZE,
@@ -101,6 +45,7 @@ impl Tile {
 }
 
 impl Default for Tile {
+    /// Returns a fully transparent tile.
     fn default() -> Self {
         Self::new()
     }
@@ -110,57 +55,64 @@ impl Default for Tile {
 mod tests {
     use super::*;
 
-    const ROUGE: Pixel = Pixel {
+    const RED: Pixel = Pixel {
         r: 1.0,
         g: 0.0,
         b: 0.0,
         a: 1.0,
     };
 
+    /// A new tile is fully transparent.
     #[test]
-    fn tuile_neuve_est_transparente() {
+    fn new_tile_is_transparent() {
         let tile = Tile::new();
         assert_eq!(tile.get(0, 0), Pixel::default());
         assert_eq!(tile.get(63, 63), Pixel::default());
     }
 
+    /// A filled tile holds the given pixel everywhere.
     #[test]
-    fn tuile_remplie_a_la_valeur_donnee() {
-        assert_eq!(Tile::filled(ROUGE).get(5, 7), ROUGE);
+    fn filled_tile_has_given_value() {
+        assert_eq!(Tile::filled(RED).get(5, 7), RED);
     }
 
+    /// Setting then getting returns the same pixel.
     #[test]
-    fn set_puis_get_redonne_le_pixel() {
+    fn set_then_get_returns_pixel() {
         let mut tile = Tile::new();
-        tile.set(10, 20, ROUGE);
-        assert_eq!(tile.get(10, 20), ROUGE);
+        tile.set(10, 20, RED);
+        assert_eq!(tile.get(10, 20), RED);
     }
 
+    /// Setting a pixel leaves the others untouched.
     #[test]
-    fn set_ne_touche_pas_les_autres_pixels() {
+    fn set_does_not_touch_other_pixels() {
         let mut tile = Tile::new();
-        tile.set(10, 20, ROUGE);
+        tile.set(10, 20, RED);
         assert_eq!(tile.get(20, 10), Pixel::default());
     }
 
+    /// All four corners can be written and read.
     #[test]
-    fn les_quatre_coins_sont_utilisables() {
+    fn four_corners_are_usable() {
         let mut tile = Tile::new();
         for (x, y) in [(0, 0), (63, 0), (0, 63), (63, 63)] {
-            tile.set(x, y, ROUGE);
-            assert_eq!(tile.get(x, y), ROUGE);
+            tile.set(x, y, RED);
+            assert_eq!(tile.get(x, y), RED);
         }
     }
 
+    /// Reading outside the tile panics.
     #[test]
     #[should_panic(expected = "hors de la tuile")]
-    fn get_hors_limites_panique() {
+    fn get_out_of_bounds_panics() {
         Tile::new().get(TILE_SIZE, 0);
     }
 
+    /// Writing outside the tile panics.
     #[test]
     #[should_panic(expected = "hors de la tuile")]
-    fn set_hors_limites_panique() {
-        Tile::new().set(0, TILE_SIZE, ROUGE);
+    fn set_out_of_bounds_panics() {
+        Tile::new().set(0, TILE_SIZE, RED);
     }
 }

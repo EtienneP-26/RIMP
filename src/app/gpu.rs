@@ -1,21 +1,25 @@
+//! The GPU surface, canvas and interface drawn into one window.
+
 use egui_wgpu::wgpu;
 use std::error::Error;
 use std::sync::Arc;
 
 use wgpu::{
-    Color, CurrentSurfaceTexture, Device, DeviceDescriptor, Instance, InstanceDescriptor, LoadOp,
-    Operations, Queue, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions,
-    StoreOp, Surface, SurfaceConfiguration, TextureViewDescriptor,
+    Adapter, Color, CommandEncoder, CurrentSurfaceTexture, Device, DeviceDescriptor, Instance,
+    InstanceDescriptor, LoadOp, Operations, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration, SurfaceTexture, TextureView,
+    TextureViewDescriptor,
 };
+use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
 use super::canvas::Canvas;
 use super::drawing::TileUpdate;
-use super::overlay::Overlay;
+use super::overlay::{Overlay, OverlayFrame};
 use crate::core::viewport::Viewport;
 
-/// # The GPU objects needed to draw into one window.
+/// The GPU objects needed to draw into one window.
 pub struct Gpu {
     surface: Surface<'static>,
     device: Device,
@@ -26,40 +30,17 @@ pub struct Gpu {
 }
 
 impl Gpu {
-    /// # Connects to the GPU and prepares the window to be drawn on.
-    ///
-    /// ## Arguments
-    /// * `window` - The window to draw into
-    /// * `rgba` - The image shown over the whole window, 4 bytes per pixel
-    /// * `width` - Image width in pixels
-    /// * `height` - Image height in pixels
-    ///
-    /// ## Returns
-    /// The ready-to-use `Gpu`.
-    ///
-    /// ## Errors
-    /// If no graphics adapter is found, or if the surface or device cannot be created.
+    /// Connects to the GPU and prepares the window to be drawn on.
     pub fn new(
         window: Arc<Window>,
         rgba: &[u8],
         width: u32,
         height: u32,
     ) -> Result<Self, Box<dyn Error>> {
-        let size = window.inner_size();
         let instance = Instance::new(InstanceDescriptor::new_without_display_handle());
         let surface = instance.create_surface(window.clone())?;
-
-        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
-            compatible_surface: Some(&surface),
-            ..Default::default()
-        }))?;
-        let (device, queue) =
-            pollster::block_on(adapter.request_device(&DeviceDescriptor::default()))?;
-
-        let config = surface
-            .get_default_config(&adapter, size.width.max(1), size.height.max(1))
-            .ok_or("the surface is not supported by this graphics adapter")?;
-        surface.configure(&device, &config);
+        let (adapter, device, queue) = request_device(&instance, &surface)?;
+        let config = configure_surface(&surface, &adapter, &device, window.inner_size())?;
         let canvas = Canvas::new(&device, &queue, config.format, rgba, width, height);
         let overlay = Overlay::new(&window, &device, config.format);
 
@@ -73,13 +54,7 @@ impl Gpu {
         })
     }
 
-    /// # Adapts the drawing surface to a new window size.
-    ///
-    /// A size of zero (minimized window) is ignored.
-    ///
-    /// ## Arguments
-    /// * `width` - New width in pixels
-    /// * `height` - New height in pixels
+    /// Adapts the drawing surface to a new window size.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width == 0 || height == 0 {
             return;
@@ -90,10 +65,7 @@ impl Gpu {
         self.surface.configure(&self.device, &self.config);
     }
 
-    /// # Sends the changed tiles to the image shown in the window.
-    ///
-    /// ## Arguments
-    /// * `tiles` - The changed rectangles and their RGBA8 pixels
+    /// Sends the changed tiles to the image shown in the window.
     pub fn update_canvas(&self, tiles: Vec<TileUpdate>) {
         for ((x, y, w, h), rgba) in tiles {
             let rect = (x as u32, y as u32, w as u32, h as u32);
@@ -101,15 +73,12 @@ impl Gpu {
         }
     }
 
-    /// # Sends the viewport to the canvas shader.
+    /// Sends the viewport to the canvas shader.
     pub fn set_viewport(&self, viewport: &Viewport) {
         self.canvas.set_viewport(&self.queue, viewport);
     }
 
-    /// # Gives a window event to the interface.
-    ///
-    /// ## Returns
-    /// What the interface did with it, see `Overlay::on_event`.
+    /// Gives a window event to the interface.
     pub fn on_window_event(
         &mut self,
         window: &Window,
@@ -118,35 +87,49 @@ impl Gpu {
         self.overlay.on_event(window, event)
     }
 
-    /// # Draws one frame: the background colour, the image over the whole window, then the interface.
-    ///
-    /// A frame that cannot be acquired (window hidden, surface outdated) is skipped.
-    ///
-    /// ## Arguments
-    /// * `color` - The background colour
-    /// * `window` - The window being drawn
-    /// * `show` - Describes the interface drawn over the image
+    /// Draws one frame: the background colour, the image over the whole window, then the interface.
     pub fn render(&mut self, color: Color, window: &Window, show: impl FnMut(&egui::Context)) {
-        let frame = match self.surface.get_current_texture() {
-            CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
-                frame
-            }
-            CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
-                return;
-            }
-            _ => return,
+        let Some(frame) = self.acquire_frame() else {
+            return;
         };
-
         let view = frame.texture.create_view(&TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
         let overlay_frame =
             self.overlay
                 .prepare(window, &self.device, &self.queue, &mut encoder, show);
+        self.record_pass(&mut encoder, &view, color, &overlay_frame);
 
+        let mut commands = self.overlay.finish(overlay_frame);
+        commands.push(encoder.finish());
+        self.queue.submit(commands);
+        frame.present();
+    }
+
+    /// Gets the next surface texture, reconfiguring an outdated surface.
+    fn acquire_frame(&mut self) -> Option<SurfaceTexture> {
+        match self.surface.get_current_texture() {
+            CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
+                Some(frame)
+            }
+            CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Records the clear, the canvas and the interface into one render pass.
+    fn record_pass(
+        &self,
+        encoder: &mut CommandEncoder,
+        view: &TextureView,
+        color: Color,
+        overlay_frame: &OverlayFrame,
+    ) {
         let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             color_attachments: &[Some(RenderPassColorAttachment {
-                view: &view,
+                view,
                 depth_slice: None,
                 resolve_target: None,
                 ops: Operations {
@@ -157,11 +140,34 @@ impl Gpu {
             ..Default::default()
         });
         self.canvas.draw(&mut pass);
-        self.overlay.paint(&mut pass.forget_lifetime(), &overlay_frame);
-
-        let mut commands = self.overlay.finish(overlay_frame);
-        commands.push(encoder.finish());
-        self.queue.submit(commands);
-        frame.present();
+        self.overlay
+            .paint(&mut pass.forget_lifetime(), overlay_frame);
     }
+}
+
+/// Requests an adapter compatible with the surface, then its device and queue.
+fn request_device(
+    instance: &Instance,
+    surface: &Surface<'static>,
+) -> Result<(Adapter, Device, Queue), Box<dyn Error>> {
+    let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions {
+        compatible_surface: Some(surface),
+        ..Default::default()
+    }))?;
+    let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor::default()))?;
+    Ok((adapter, device, queue))
+}
+
+/// Configures the surface with its default settings for the given size.
+fn configure_surface(
+    surface: &Surface<'static>,
+    adapter: &Adapter,
+    device: &Device,
+    size: PhysicalSize<u32>,
+) -> Result<SurfaceConfiguration, Box<dyn Error>> {
+    let config = surface
+        .get_default_config(adapter, size.width.max(1), size.height.max(1))
+        .ok_or("the surface is not supported by this graphics adapter")?;
+    surface.configure(device, &config);
+    Ok(config)
 }
