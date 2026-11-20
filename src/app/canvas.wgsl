@@ -24,5 +24,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) {
         discard;
     }
-    return textureSample(canvas_texture, canvas_sampler, uv);
+    let color = textureSample(canvas_texture, canvas_sampler, uv);
+    let cell = vec2<u32>(floor(in.position.xy / 16.0));
+    let grey = select(0.6, 0.8, (cell.x + cell.y) % 2u == 0u);
+    return vec4<f32>(color.rgb + vec3<f32>(grey) * (1.0 - color.a), 1.0);
 }
